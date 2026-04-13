@@ -194,14 +194,59 @@
 
   /* DIVIDER */
   .divider { height: 0.5px; background: var(--border); margin: 20px 0 0; }
+
+  /* SYNC BADGE */
+  .sync-badge {
+    font-size: 11px; width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%; transition: all var(--tr);
+  }
+  .sync-badge.saving { color: var(--amber); animation: spin 1s linear infinite; }
+  .sync-badge.ok     { color: var(--green); }
+  .sync-badge.error  { color: var(--red); }
+  .sync-badge.idle   { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* DATA BUTTONS */
+  .data-actions { display: flex; gap: 8px; }
+  .btn-data {
+    font-size: 11px; padding: 3px 9px; border-radius: 20px;
+    background: var(--accent-bg); color: var(--text2);
+    border: 0.5px solid var(--border); cursor: pointer;
+    transition: opacity var(--tr);
+  }
+  .btn-data:active { opacity: 0.6; }
+
+  /* LOADING OVERLAY */
+  .loading-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px;
+  }
+  .loading-spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--border2);
+    border-top-color: var(--text);
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-label { font-size: 13px; color: var(--text3); }
 </style>
 </head>
 <body>
 <div class="app" id="app">
 
+  <!-- LOADING OVERLAY -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-label">caricamento…</div>
+  </div>
+
   <div class="header">
     <span class="header-title">Budget</span>
     <div class="header-right">
+      <span class="sync-badge idle" id="sync-badge" title="stato sincronizzazione">⟳</span>
       <span class="theme-badge" id="theme-badge">☀️ chiaro</span>
       <span class="header-date" id="header-date"></span>
     </div>
@@ -253,6 +298,16 @@
         <div class="saldo-display" id="saldo-display">—</div>
         <button class="btn-sm" onclick="editSaldo()">aggiorna</button>
       </div>
+    </div>
+
+    <div class="section" style="margin-top:20px">
+      <div class="section-label">dati</div>
+      <div class="data-actions">
+        <button class="btn-data" onclick="exportData()">⬇ esporta JSON</button>
+        <button class="btn-data" onclick="importData()">⬆ importa JSON</button>
+      </div>
+      <input type="file" id="import-input" accept=".json,application/json"
+             style="display:none" onchange="handleImport(event)" />
     </div>
 
     <div style="height:20px"></div>
@@ -333,13 +388,54 @@
 </div>
 
 <script>
-const DAILY = 20;
+const DAILY    = 20;
+const KV_KEY   = 'budget_v2';
+const API_LOAD = '/api/load';
+const API_SAVE = '/api/save';
+
 let chartBarre = null;
 let chartLinea = null;
 
-let state = JSON.parse(localStorage.getItem('budget_v2') || 'null') || {
-  expenses: {}, history: [], recurring: [], saldo: null, lastDate: null, carryover: 0
+// Stato base — popolato da loadState()
+let state = {
+  expenses: {}, history: [], recurring: [],
+  saldo: null, lastDate: null, carryover: 0
 };
+
+// ── Sync badge ────────────────────────────────────────────────────────────────
+let _syncTimer = null;
+function setSyncStatus(s) {
+  const el = document.getElementById('sync-badge');
+  if (!el) return;
+  clearTimeout(_syncTimer);
+  el.className = 'sync-badge ' + s;
+  if (s === 'saving') el.textContent = '⟳';
+  else if (s === 'ok')    { el.textContent = '✓'; _syncTimer = setTimeout(() => setSyncStatus('idle'), 2000); }
+  else if (s === 'error') el.textContent = '✕';
+  else el.textContent = '';
+}
+
+// ── Carica stato da Worker (con fallback localStorage) ────────────────────────
+async function loadState() {
+  try {
+    const res = await fetch(API_LOAD);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const remote = await res.json();
+    if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
+      state = Object.assign({ expenses: {}, history: [], recurring: [], saldo: null, lastDate: null, carryover: 0 }, remote);
+      localStorage.setItem(KV_KEY, JSON.stringify(state)); // cache locale
+      return;
+    }
+  } catch (e) {
+    console.warn('[budget] Worker non raggiungibile, uso cache locale.', e.message);
+  }
+  // fallback a localStorage
+  const cached = localStorage.getItem(KV_KEY);
+  if (cached) {
+    try { state = Object.assign(state, JSON.parse(cached)); }
+    catch { /* cache corrotta, si parte da zero */ }
+  }
+}
 
 function todayKey() {
   return new Date().toISOString().split('T')[0];
@@ -357,10 +453,17 @@ function fmtSigned(n) {
 function applyTheme() {
   const h = new Date().getHours();
   const isDark = h >= 20 || h < 7;
-  document.getElementById('app').setAttribute('data-theme', isDark ? 'dark' : 'light');
+  const app = document.getElementById('app');
+  const prevTheme = app.getAttribute('data-theme');
+  const newTheme = isDark ? 'dark' : 'light';
+  app.setAttribute('data-theme', newTheme);
   document.getElementById('theme-badge').textContent = isDark ? '🌙 scuro' : '☀️ chiaro';
   const meta = document.getElementById('theme-color-meta');
   if (meta) meta.content = isDark ? '#111111' : '#ffffff';
+  if (prevTheme && prevTheme !== newTheme) {
+    if (chartBarre) { chartBarre.destroy(); chartBarre = null; }
+    if (chartLinea) { chartLinea.destroy(); chartLinea = null; }
+  }
 }
 
 // --- DAY ROLLOVER ---
@@ -385,7 +488,60 @@ function checkDayRollover() {
 }
 
 function save() {
-  localStorage.setItem('budget_v2', JSON.stringify(state));
+  const payload = JSON.stringify(state);
+  localStorage.setItem(KV_KEY, payload); // cache immediata (offline-safe)
+  setSyncStatus('saving');
+  fetch(API_SAVE, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    payload,
+  })
+    .then(r => r.ok ? setSyncStatus('ok') : setSyncStatus('error'))
+    .catch(() => setSyncStatus('error'));
+}
+
+// ── Export JSON ───────────────────────────────────────────────────────────────
+async function exportData() {
+  let payload;
+  try {
+    const res = await fetch(API_LOAD);
+    payload = await res.text();
+  } catch {
+    payload = localStorage.getItem(KV_KEY) || '{}';
+  }
+  const blob = new Blob([payload], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), {
+    href:     url,
+    download: `budget_${new Date().toISOString().slice(0, 10)}.json`,
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Import JSON ───────────────────────────────────────────────────────────────
+function importData() {
+  document.getElementById('import-input').click();
+}
+
+async function handleImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text   = await file.text();
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== 'object' || !parsed.expenses) throw new Error('struttura non riconosciuta');
+    state = Object.assign({ expenses: {}, history: [], recurring: [], saldo: null, lastDate: null, carryover: 0 }, parsed);
+    save();
+    render();
+    e.target.value = '';
+    alert('Importazione completata.');
+  } catch (err) {
+    alert('Errore importazione: ' + err.message);
+    e.target.value = '';
+  }
 }
 
 // --- RENDER MAIN ---
@@ -413,7 +569,7 @@ function render() {
   const cc = document.getElementById('carryover-container');
   if (state.carryover !== 0) {
     const isPos = state.carryover > 0;
-    cc.innerHTML = `<div class="carryover-badge ${isPos ? 'pos' : 'neg'}">${isPos ? '+' : ''}${fmt(state.carryover).replace('€', '€\u00a0')} da ieri</div>`;
+    cc.innerHTML = `<div class="carryover-badge ${isPos ? 'pos' : 'neg'}">${isPos ? '+' : ''}${fmt(state.carryover)} da ieri</div>`;
   } else cc.innerHTML = '';
 
   // alert
@@ -456,8 +612,11 @@ function render() {
   });
 
   renderChartBarre();
-  renderChartLinea();
-  renderHistory();
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.id === 'tab-storico') {
+    renderChartLinea();
+    renderHistory();
+  }
   renderRecurring();
 }
 
@@ -510,6 +669,7 @@ function renderChartBarre() {
           data: Array(labels.length).fill(DAILY),
           borderColor: '#888780',
           borderDash: [4, 3],
+          fill: false,
           borderWidth: 1.5,
           pointRadius: 0,
           tension: 0,
@@ -547,6 +707,8 @@ function renderChartBarre() {
 // --- CHART B: LINEA CARRYOVER ---
 function renderChartLinea() {
   if (state.history.length < 2) {
+    // destroy any existing Chart.js instance before drawing raw canvas text
+    if (chartLinea) { chartLinea.destroy(); chartLinea = null; }
     const canvas = document.getElementById('chartLinea');
     const ctx = canvas.getContext('2d');
     const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
@@ -739,11 +901,18 @@ function switchTab(name) {
 document.getElementById('exp-amount').addEventListener('keydown', e => { if (e.key === 'Enter') addExpense(); });
 document.getElementById('exp-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('exp-amount').focus(); });
 
-// init
-applyTheme();
-checkDayRollover();
-render();
-setInterval(() => { applyTheme(); render(); }, 60000);
+// ── Init asincrono ────────────────────────────────────────────────────────────
+async function init() {
+  applyTheme();
+  const overlay = document.getElementById('loading-overlay');
+  overlay.style.display = 'flex';
+  await loadState();
+  overlay.style.display = 'none';
+  checkDayRollover();
+  render();
+  setInterval(() => { applyTheme(); render(); }, 60000);
+}
+init();
 </script>
 </body>
 </html>
