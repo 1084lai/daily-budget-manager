@@ -237,6 +237,21 @@
   .history-exp-amount { font-size: 13px; color: var(--red); flex-shrink: 0; margin-left: 8px; }
   .history-exp-tag-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; padding-bottom: 2px; }
   .history-day-toggle { font-size: 11px; color: var(--text3); cursor: pointer; margin-top: 3px; display: inline-block; }
+  .tag-btn { background: var(--bg3); border: none; border-radius: 6px; padding: 2px 7px; font-size: 10px; color: var(--text3); cursor: pointer; flex-shrink: 0; margin-left: 6px; }
+  .history-row { cursor: pointer; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: flex; align-items: flex-end; justify-content: center; }
+  .modal-overlay.hidden { display: none; }
+  .modal-sheet {
+    background: var(--bg); border-radius: 18px 18px 0 0;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    width: 100%; max-width: 430px;
+  }
+  .modal-title { font-size: 13px; font-weight: 500; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px; }
+  .modal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 8px; }
+  .modal-actions .btn { flex: 1; }
 
   /* DATA BUTTONS */
   .data-actions { display: flex; gap: 8px; }
@@ -404,6 +419,18 @@
       </div>
     </div>
     <div style="height:20px"></div>
+  </div>
+
+  <!-- TAG MODAL -->
+  <div class="modal-overlay hidden" id="tag-modal" onclick="closeTagModal(event)">
+    <div class="modal-sheet">
+      <div class="modal-title" id="tag-modal-title">assegna tag</div>
+      <div class="modal-chips" id="tag-modal-chips"></div>
+      <div class="modal-actions">
+        <button class="btn" style="background:var(--bg2);color:var(--text)" onclick="closeTagModal()">annulla</button>
+        <button class="btn" onclick="confirmTagModal()">applica</button>
+      </div>
+    </div>
   </div>
 
   <!-- NAV -->
@@ -867,28 +894,27 @@ function renderHistory() {
           const t = state.tags.find(x => x.id === tid);
           return t ? `<span class="tag-pill" style="background:${t.color}22;color:${t.color}">${t.name}</span>` : '';
         }).join('');
-        const chipRow = state.tags.length > 0 ? `<div class="history-exp-tag-row">
-          ${state.tags.map(t => {
-            const sel = (e.tags || []).includes(t.id) ? 'active' : '';
-            return `<span class="tag-chip ${sel}" style="background:${t.color}22;color:${t.color};font-size:10px;padding:2px 8px" onclick="toggleHistoryTag('${h.date}',${expIdx},'${t.id}')">${t.name}</span>`;
-          }).join('')}
-        </div>` : '';
+        const tagBtn = state.tags.length > 0 ? `<button class="tag-btn" onclick="openTagModal('${h.date}',${expIdx})">tag</button>` : '';
         return `<div class="history-exp-item">
           <div class="history-exp-row">
             <span class="history-exp-name">${e.name}</span>
             <span class="history-exp-amount">-${fmt(e.amount)}</span>
+            ${tagBtn}
           </div>
           ${pills ? `<div class="tag-pills-row">${pills}</div>` : ''}
-          ${chipRow}
         </div>`;
       }).join('');
+    const dayTagBtn = state.tags.length > 0 ? `<button class="tag-btn" onclick="openTagModal('${h.date}',null)">tag tutto</button>` : '';
     return `<div class="history-item">
       <div class="history-date">${dateStr}</div>
-      <div class="history-row">
+      <div class="history-row" onclick="toggleHistoryExpand('${h.date}')">
         <span class="history-spent">speso ${fmt(h.spent)}</span>
-        <span class="history-carry" style="color:var(--${isPos ? 'green' : 'red'})">${fmtSigned(h.remaining)}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="history-carry" style="color:var(--${isPos ? 'green' : 'red'})">${fmtSigned(h.remaining)}</span>
+          ${dayTagBtn}
+        </div>
       </div>
-      <span class="history-day-toggle" id="htoggle-${h.date}" onclick="toggleHistoryExpand('${h.date}')">mostra spese</span>
+      <span class="history-day-toggle" id="htoggle-${h.date}">mostra spese</span>
       <div id="hexp-${h.date}" style="display:none">${expHtml}</div>
     </div>`;
   }).join('');
@@ -1048,15 +1074,62 @@ function renderTagsSection() {
   ).join('');
 }
 
-function toggleHistoryTag(date, expIdx, tagId) {
-  const exp = (state.expenses[date] || [])[expIdx];
-  if (!exp) return;
-  if (!exp.tags) exp.tags = [];
-  const i = exp.tags.indexOf(tagId);
-  if (i === -1) exp.tags.push(tagId);
-  else exp.tags.splice(i, 1);
+let _modalDate = null;
+let _modalExpIdx = null; // null = applica a tutte
+let _modalTags = [];
+
+function openTagModal(date, expIdx) {
+  if (state.tags.length === 0) return;
+  _modalDate = date;
+  _modalExpIdx = expIdx;
+  // precarica tag selezionati
+  if (expIdx === null) {
+    // unione tag comuni a tutte le spese del giorno
+    const exps = state.expenses[date] || [];
+    _modalTags = exps.length > 0
+      ? state.tags.filter(t => exps.every(e => (e.tags || []).includes(t.id))).map(t => t.id)
+      : [];
+  } else {
+    const exp = (state.expenses[date] || [])[expIdx];
+    _modalTags = exp ? [...(exp.tags || [])] : [];
+  }
+  const title = document.getElementById('tag-modal-title');
+  title.textContent = expIdx === null ? 'tag per tutte le voci del giorno' : 'tag per questa voce';
+  renderModalChips();
+  document.getElementById('tag-modal').classList.remove('hidden');
+}
+
+function renderModalChips() {
+  document.getElementById('tag-modal-chips').innerHTML = state.tags.map(t => {
+    const active = _modalTags.includes(t.id) ? 'active' : '';
+    return `<span class="tag-chip ${active}" style="background:${t.color}22;color:${t.color}" onclick="toggleModalTag('${t.id}')">${t.name}</span>`;
+  }).join('');
+}
+
+function toggleModalTag(id) {
+  const i = _modalTags.indexOf(id);
+  if (i === -1) _modalTags.push(id);
+  else _modalTags.splice(i, 1);
+  renderModalChips();
+}
+
+function confirmTagModal() {
+  const exps = state.expenses[_modalDate] || [];
+  if (_modalExpIdx === null) {
+    exps.forEach(e => { e.tags = [..._modalTags]; });
+  } else {
+    const exp = exps[_modalExpIdx];
+    if (exp) exp.tags = [..._modalTags];
+  }
   save();
+  closeTagModal();
   renderHistory();
+}
+
+function closeTagModal(e) {
+  if (e && e.target !== document.getElementById('tag-modal')) return;
+  document.getElementById('tag-modal').classList.add('hidden');
+  _modalDate = null; _modalExpIdx = null; _modalTags = [];
 }
 
 function toggleHistoryExpand(date) {
