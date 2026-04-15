@@ -285,6 +285,7 @@
       <div class="chart-legend">
         <span><span class="leg-sq" style="background:#2d7a4f"></span>entro limite</span>
         <span><span class="leg-sq" style="background:#a32d2d"></span>sforato</span>
+        <span><span class="leg-sq" style="background:#b86e00"></span>limite ok, carryover negativo</span>
         <span><span class="leg-line" style="background:#888780"></span>limite €20</span>
       </div>
       <div class="chart-container" style="height:160px">
@@ -641,7 +642,11 @@ function renderChartBarre() {
     return dt.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
   });
   const data = days.map(d => parseFloat(d.spent.toFixed(2)));
-  const colors = days.map(d => d.remaining < 0 ? '#a32d2d' : '#2d7a4f');
+  const colors = days.map(d => {
+    if (d.remaining >= 0) return '#2d7a4f';
+    if (d.spent > DAILY) return '#a32d2d';
+    return '#b86e00';
+  });
 
   const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
   const textColor = isDark ? '#5f5e5a' : '#9b9b97';
