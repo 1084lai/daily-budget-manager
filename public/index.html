@@ -649,6 +649,7 @@ function renderChartBarre() {
     chartBarre.data.labels = labels;
     chartBarre.data.datasets[0].data = data;
     chartBarre.data.datasets[0].backgroundColor = colors;
+    chartBarre.data.datasets[1].data = Array(labels.length).fill(DAILY);
     chartBarre.update('none');
     return;
   }
