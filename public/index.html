@@ -626,9 +626,11 @@ function renderChartBarre() {
   const last7 = [];
 
   // ultimi 7 giorni dallo storico + oggi
+  const todaySpent = parseFloat((state.expenses[today] || []).reduce((s, e) => s + e.amount, 0).toFixed(2));
   const allDays = [...state.history.slice(0, 6).reverse(), {
     date: today,
-    spent: parseFloat((state.expenses[today] || []).reduce((s, e) => s + e.amount, 0).toFixed(2))
+    spent: todaySpent,
+    remaining: parseFloat((DAILY + state.carryover - todaySpent).toFixed(2))
   }];
 
   // prendi ultimi 7
@@ -639,7 +641,7 @@ function renderChartBarre() {
     return dt.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
   });
   const data = days.map(d => parseFloat(d.spent.toFixed(2)));
-  const colors = data.map(v => v > DAILY ? '#a32d2d' : '#2d7a4f');
+  const colors = days.map(d => d.remaining < 0 ? '#a32d2d' : '#2d7a4f');
 
   const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
   const textColor = isDark ? '#5f5e5a' : '#9b9b97';
