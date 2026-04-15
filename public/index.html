@@ -207,6 +207,37 @@
   .sync-badge.idle   { display: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* TAGS */
+  .tag-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; }
+  .tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+    cursor: pointer; border: 1.5px solid transparent;
+    transition: opacity var(--tr), border-color var(--tr);
+    user-select: none;
+  }
+  .tag-chip.active { border-color: rgba(0,0,0,0.35); }
+  [data-theme="dark"] .tag-chip.active { border-color: rgba(255,255,255,0.45); }
+  .tag-pill {
+    display: inline-flex; align-items: center;
+    padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 500;
+    margin-right: 3px; margin-top: 3px; cursor: pointer;
+  }
+  .tag-pills-row { display: flex; flex-wrap: wrap; margin-top: 2px; }
+  .color-swatch { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color var(--tr); flex-shrink: 0; }
+  .color-swatch.active { border-color: var(--text); }
+  .tag-manage-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 0.5px solid var(--border); }
+  .tag-manage-item:last-child { border-bottom: none; }
+  .tag-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .history-exp-list { padding-left: 0; margin-top: 6px; }
+  .history-exp-item { padding: 6px 0; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .history-exp-item:last-child { border-bottom: none; }
+  .history-exp-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .history-exp-name { font-size: 13px; color: var(--text2); flex: 1; }
+  .history-exp-amount { font-size: 13px; color: var(--red); flex-shrink: 0; margin-left: 8px; }
+  .history-exp-tag-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; padding-bottom: 2px; }
+  .history-day-toggle { font-size: 11px; color: var(--text3); cursor: pointer; margin-top: 3px; display: inline-block; }
+
   /* DATA BUTTONS */
   .data-actions { display: flex; gap: 8px; }
   .btn-data {
@@ -273,6 +304,7 @@
         <input class="input-field" type="number" id="exp-amount" placeholder="€" step="0.01" min="0" style="max-width:90px" />
         <button class="btn" onclick="addExpense()">+</button>
       </div>
+      <div class="tag-chip-row" id="tag-chip-row-add"></div>
     </div>
 
     <div class="section">
@@ -337,6 +369,16 @@
     </div>
 
     <div class="section" style="margin-top:20px">
+      <div class="section-label">tag</div>
+      <div class="input-row" style="align-items:center">
+        <input class="input-field" type="text" id="tag-name-input" placeholder="nome tag" autocomplete="off" />
+        <div id="color-picker" style="display:flex;gap:6px;align-items:center;flex-shrink:0"></div>
+        <button class="btn" onclick="addTag()">+</button>
+      </div>
+      <div id="tags-list"></div>
+    </div>
+
+    <div class="section" style="margin-top:20px">
       <div class="section-label">storico giornaliero</div>
       <div id="history-list"><div class="empty">nessuno storico disponibile</div></div>
     </div>
@@ -397,11 +439,16 @@ const API_SAVE = '/api/save';
 let chartBarre = null;
 let chartLinea = null;
 
+const TAG_PALETTE = ['#e74c3c','#e67e22','#d4a017','#27ae60','#2980b9','#8e44ad','#16a085','#7f8c8d'];
+
 // Stato base — popolato da loadState()
 let state = {
-  expenses: {}, history: [], recurring: [],
+  expenses: {}, history: [], recurring: [], tags: [],
   saldo: null, lastDate: null, carryover: 0
 };
+
+let _pendingTags = [];
+let _selectedColor = TAG_PALETTE[0];
 
 // ── Sync badge ────────────────────────────────────────────────────────────────
 let _syncTimer = null;
@@ -423,7 +470,8 @@ async function loadState() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const remote = await res.json();
     if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
-      state = Object.assign({ expenses: {}, history: [], recurring: [], saldo: null, lastDate: null, carryover: 0 }, remote);
+      state = Object.assign({ expenses: {}, history: [], recurring: [], tags: [], saldo: null, lastDate: null, carryover: 0 }, remote);
+      if (!state.tags) state.tags = [];
       localStorage.setItem(KV_KEY, JSON.stringify(state)); // cache locale
       return;
     }
@@ -592,9 +640,14 @@ function render() {
   } else {
     list.innerHTML = expenses.slice().reverse().map((e, ri) => {
       const i = expenses.length - 1 - ri;
+      const pills = (e.tags || []).map(tid => {
+        const t = state.tags.find(x => x.id === tid);
+        return t ? `<span class="tag-pill" style="background:${t.color}22;color:${t.color}">${t.name}</span>` : '';
+      }).join('');
       return `<div class="expense-item">
         <div class="expense-info">
           <div class="expense-name">${e.name}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${pills}</div>
           <div class="expense-time">${e.time}</div>
         </div>
         <div class="expense-amount">-${fmt(e.amount)}</div>
@@ -612,6 +665,7 @@ function render() {
     weekday: 'short', day: 'numeric', month: 'short'
   });
 
+  renderTagChipRowAdd();
   renderChartBarre();
   const activeTab = document.querySelector('.tab.active');
   if (activeTab && activeTab.id === 'tab-storico') {
@@ -806,12 +860,36 @@ function renderHistory() {
     const isPos = h.remaining >= 0;
     const dt = new Date(h.date);
     const dateStr = dt.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    const dayExpenses = state.expenses[h.date] || [];
+    const expHtml = dayExpenses.length === 0 ? '<div style="font-size:12px;color:var(--text3);padding:6px 0">nessuna spesa registrata</div>' :
+      dayExpenses.map((e, expIdx) => {
+        const pills = (e.tags || []).map(tid => {
+          const t = state.tags.find(x => x.id === tid);
+          return t ? `<span class="tag-pill" style="background:${t.color}22;color:${t.color}">${t.name}</span>` : '';
+        }).join('');
+        const chipRow = state.tags.length > 0 ? `<div class="history-exp-tag-row">
+          ${state.tags.map(t => {
+            const sel = (e.tags || []).includes(t.id) ? 'active' : '';
+            return `<span class="tag-chip ${sel}" style="background:${t.color}22;color:${t.color};font-size:10px;padding:2px 8px" onclick="toggleHistoryTag('${h.date}',${expIdx},'${t.id}')">${t.name}</span>`;
+          }).join('')}
+        </div>` : '';
+        return `<div class="history-exp-item">
+          <div class="history-exp-row">
+            <span class="history-exp-name">${e.name}</span>
+            <span class="history-exp-amount">-${fmt(e.amount)}</span>
+          </div>
+          ${pills ? `<div class="tag-pills-row">${pills}</div>` : ''}
+          ${chipRow}
+        </div>`;
+      }).join('');
     return `<div class="history-item">
       <div class="history-date">${dateStr}</div>
       <div class="history-row">
         <span class="history-spent">speso ${fmt(h.spent)}</span>
         <span class="history-carry" style="color:var(--${isPos ? 'green' : 'red'})">${fmtSigned(h.remaining)}</span>
       </div>
+      <span class="history-day-toggle" id="htoggle-${h.date}" onclick="toggleHistoryExpand('${h.date}')">mostra spese</span>
+      <div id="hexp-${h.date}" style="display:none">${expHtml}</div>
     </div>`;
   }).join('');
 
@@ -863,9 +941,10 @@ function addExpense() {
   const today = todayKey();
   const now = new Date();
   const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  state.expenses[today].push({ name, amount: parseFloat(amount.toFixed(2)), time });
+  state.expenses[today].push({ name, amount: parseFloat(amount.toFixed(2)), time, tags: [..._pendingTags] });
   document.getElementById('exp-name').value = '';
   document.getElementById('exp-amount').value = '';
+  _pendingTags = [];
   save(); render();
 }
 
@@ -897,12 +976,103 @@ function delRecurring(i) {
   save(); renderRecurring();
 }
 
+// --- TAGS ---
+function renderTagChipRowAdd() {
+  const row = document.getElementById('tag-chip-row-add');
+  if (!row) return;
+  if (state.tags.length === 0) { row.innerHTML = ''; return; }
+  row.innerHTML = state.tags.map(t => {
+    const active = _pendingTags.includes(t.id) ? 'active' : '';
+    return `<span class="tag-chip ${active}" style="background:${t.color}22;color:${t.color}" onclick="togglePendingTag('${t.id}')">${t.name}</span>`;
+  }).join('');
+}
+
+function togglePendingTag(id) {
+  const idx = _pendingTags.indexOf(id);
+  if (idx === -1) _pendingTags.push(id);
+  else _pendingTags.splice(idx, 1);
+  renderTagChipRowAdd();
+}
+
+function renderColorPicker() {
+  const el = document.getElementById('color-picker');
+  if (!el) return;
+  el.innerHTML = TAG_PALETTE.map(c =>
+    `<span class="color-swatch${c === _selectedColor ? ' active' : ''}" style="background:${c}" onclick="selectColor('${c}')"></span>`
+  ).join('');
+}
+
+function selectColor(c) {
+  _selectedColor = c;
+  renderColorPicker();
+}
+
+function addTag() {
+  const name = document.getElementById('tag-name-input').value.trim();
+  if (!name) return;
+  const id = 't' + Date.now();
+  state.tags.push({ id, name, color: _selectedColor });
+  document.getElementById('tag-name-input').value = '';
+  save();
+  renderTagsSection();
+  renderTagChipRowAdd();
+}
+
+function delTag(id) {
+  state.tags = state.tags.filter(t => t.id !== id);
+  // rimuovi tag da tutte le spese
+  Object.values(state.expenses).forEach(day =>
+    day.forEach(e => { if (e.tags) e.tags = e.tags.filter(tid => tid !== id); })
+  );
+  _pendingTags = _pendingTags.filter(tid => tid !== id);
+  save();
+  renderTagsSection();
+  renderTagChipRowAdd();
+  render();
+}
+
+function renderTagsSection() {
+  renderColorPicker();
+  const list = document.getElementById('tags-list');
+  if (!list) return;
+  if (state.tags.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:12px 0">nessun tag creato</div>';
+    return;
+  }
+  list.innerHTML = state.tags.map(t =>
+    `<div class="tag-manage-item">
+      <span class="tag-color-dot" style="background:${t.color}"></span>
+      <span style="flex:1;font-size:14px;color:var(--text)">${t.name}</span>
+      <button class="del-btn" onclick="delTag('${t.id}')">×</button>
+    </div>`
+  ).join('');
+}
+
+function toggleHistoryTag(date, expIdx, tagId) {
+  const exp = (state.expenses[date] || [])[expIdx];
+  if (!exp) return;
+  if (!exp.tags) exp.tags = [];
+  const i = exp.tags.indexOf(tagId);
+  if (i === -1) exp.tags.push(tagId);
+  else exp.tags.splice(i, 1);
+  save();
+  renderHistory();
+}
+
+function toggleHistoryExpand(date) {
+  const el = document.getElementById('hexp-' + date);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  const toggle = document.getElementById('htoggle-' + date);
+  if (toggle) toggle.textContent = el.style.display === 'none' ? 'mostra spese' : 'nascondi spese';
+}
+
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
-  if (name === 'storico') { renderChartLinea(); renderHistory(); }
+  if (name === 'storico') { renderChartLinea(); renderHistory(); renderTagsSection(); }
 }
 
 // enter key on expense fields
@@ -918,6 +1088,7 @@ async function init() {
   overlay.style.display = 'none';
   checkDayRollover();
   render();
+  renderColorPicker();
   setInterval(() => { applyTheme(); render(); }, 60000);
 }
 init();
