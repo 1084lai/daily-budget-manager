@@ -392,8 +392,8 @@
     <div style="height:20px"></div>
   </div>
 
-  <!-- TAB RICORRENTI -->
-  <div class="tab" id="tab-ricorrenti">
+  <!-- TAB EXTRA -->
+  <div class="tab" id="tab-extra">
     <div class="section" style="padding-top:24px">
       <div class="section-label">abbonamenti e ricorrenti</div>
       <div class="input-row">
@@ -408,6 +408,24 @@
       <div class="cards-grid cards-2">
         <div class="metric-card"><div class="metric-label">totale mensile</div><div class="metric-value" id="rec-total-m">€0,00</div></div>
         <div class="metric-card"><div class="metric-label">totale annuale</div><div class="metric-value" id="rec-total-y">€0,00</div></div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top:20px">
+      <div class="section-label">spese straordinarie</div>
+      <div class="input-row">
+        <input class="input-field" type="text" id="extra-name" placeholder="descrizione" autocomplete="off" />
+        <input class="input-field" type="number" id="extra-amount" placeholder="€" step="0.01" min="0" style="max-width:90px" />
+        <button class="btn" onclick="addExtra()">+</button>
+      </div>
+      <div class="tag-chip-row" id="tag-chip-row-extra"></div>
+      <div id="extras-list"><div class="empty">nessuna spesa straordinaria</div></div>
+    </div>
+
+    <div class="section" style="margin-top:20px">
+      <div class="metric-card" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="metric-label">totale straordinarie</div>
+        <div class="metric-value neg" id="extra-total">€0,00</div>
       </div>
     </div>
     <div style="height:20px"></div>
@@ -439,11 +457,11 @@
       </svg>
       storico
     </button>
-    <button class="nav-item" id="nav-ricorrenti" onclick="switchTab('ricorrenti')">
+    <button class="nav-item" id="nav-extra" onclick="switchTab('extra')">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <path d="M4 12v-2a8 8 0 0116 0v2"/><path d="M20 12v2a8 8 0 01-16 0v-2"/>
       </svg>
-      ricorrenti
+      extra
     </button>
   </nav>
 
@@ -462,11 +480,12 @@ const TAG_PALETTE = ['#e74c3c','#e67e22','#d4a017','#27ae60','#2980b9','#8e44ad'
 
 // Stato base — popolato da loadState()
 let state = {
-  expenses: {}, history: [], recurring: [], tags: [],
+  expenses: {}, history: [], recurring: [], tags: [], extras: [],
   saldo: null, lastDate: null, carryover: 0
 };
 
 let _pendingTags = [];
+let _pendingExtraTags = [];
 let _selectedColor = TAG_PALETTE[0];
 
 // ── Sync badge ────────────────────────────────────────────────────────────────
@@ -489,8 +508,9 @@ async function loadState() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const remote = await res.json();
     if (remote && typeof remote === 'object' && Object.keys(remote).length > 0) {
-      state = Object.assign({ expenses: {}, history: [], recurring: [], tags: [], saldo: null, lastDate: null, carryover: 0 }, remote);
+      state = Object.assign({ expenses: {}, history: [], recurring: [], tags: [], extras: [], saldo: null, lastDate: null, carryover: 0 }, remote);
       if (!state.tags) state.tags = [];
+      if (!state.extras) state.extras = [];
       localStorage.setItem(KV_KEY, JSON.stringify(state)); // cache locale
       return;
     }
@@ -716,7 +736,10 @@ function render() {
     renderChartLinea();
     renderHistory();
   }
-  renderRecurring();
+  if (activeTab && activeTab.id === 'tab-extra') {
+    renderRecurring();
+    renderExtras();
+  }
 }
 
 // --- CHART A: BARRE 7 GIORNI ---
@@ -1019,6 +1042,79 @@ function delRecurring(i) {
   save(); renderRecurring();
 }
 
+// --- EXTRAS ---
+function addExtra() {
+  const name = document.getElementById('extra-name').value.trim();
+  const raw = document.getElementById('extra-amount').value.replace(',', '.');
+  const amount = parseFloat(raw);
+  if (!name || isNaN(amount) || amount <= 0) return;
+  const now = new Date();
+  state.extras.push({
+    name,
+    amount: parseFloat(amount.toFixed(2)),
+    date: todayKey(),
+    time: String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'),
+    tags: [..._pendingExtraTags]
+  });
+  document.getElementById('extra-name').value = '';
+  document.getElementById('extra-amount').value = '';
+  _pendingExtraTags = [];
+  save(); renderExtras();
+}
+
+function delExtra(i) {
+  state.extras.splice(i, 1);
+  save(); renderExtras();
+}
+
+function renderExtras() {
+  renderTagChipRowExtra();
+  const list = document.getElementById('extras-list');
+  if (!list) return;
+  if (state.extras.length === 0) {
+    list.innerHTML = '<div class="empty">nessuna spesa straordinaria</div>';
+    document.getElementById('extra-total').textContent = '€0,00';
+    return;
+  }
+  list.innerHTML = state.extras.slice().reverse().map((e, ri) => {
+    const i = state.extras.length - 1 - ri;
+    const pills = (e.tags || []).map(tid => {
+      const t = state.tags.find(x => x.id === tid);
+      return t ? `<span class="tag-pill" style="background:${t.color}22;color:${t.color}">${t.name}</span>` : '';
+    }).join('');
+    const tagBtn = state.tags.length > 0 ? `<button class="tag-btn" onclick="openTagModalExtra(${i})">tag</button>` : '';
+    return `<div class="expense-item">
+      <div class="expense-info">
+        <div class="expense-name">${e.name}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px">${pills}</div>
+        <div class="expense-time">${e.date} ${e.time || ''}</div>
+      </div>
+      <div class="expense-amount">-${fmt(e.amount)}</div>
+      ${tagBtn}
+      <button class="del-btn" onclick="delExtra(${i})" style="margin-left:6px">×</button>
+    </div>`;
+  }).join('');
+  const total = state.extras.reduce((s, e) => s + e.amount, 0);
+  document.getElementById('extra-total').textContent = fmt(total);
+}
+
+function renderTagChipRowExtra() {
+  const row = document.getElementById('tag-chip-row-extra');
+  if (!row) return;
+  if (state.tags.length === 0) { row.innerHTML = ''; return; }
+  row.innerHTML = state.tags.map(t => {
+    const active = _pendingExtraTags.includes(t.id) ? 'active' : '';
+    return `<span class="tag-chip ${active}" style="background:${t.color}22;color:${t.color}" onclick="togglePendingExtraTag('${t.id}')">${t.name}</span>`;
+  }).join('');
+}
+
+function togglePendingExtraTag(id) {
+  const idx = _pendingExtraTags.indexOf(id);
+  if (idx === -1) _pendingExtraTags.push(id);
+  else _pendingExtraTags.splice(idx, 1);
+  renderTagChipRowExtra();
+}
+
 // --- TAGS ---
 function renderTagChipRowAdd() {
   const row = document.getElementById('tag-chip-row-add');
@@ -1063,11 +1159,12 @@ function addTag() {
 
 function delTag(id) {
   state.tags = state.tags.filter(t => t.id !== id);
-  // rimuovi tag da tutte le spese
   Object.values(state.expenses).forEach(day =>
     day.forEach(e => { if (e.tags) e.tags = e.tags.filter(tid => tid !== id); })
   );
+  state.extras.forEach(e => { if (e.tags) e.tags = e.tags.filter(tid => tid !== id); });
   _pendingTags = _pendingTags.filter(tid => tid !== id);
+  _pendingExtraTags = _pendingExtraTags.filter(tid => tid !== id);
   save();
   renderTagsSection();
   renderTagChipRowAdd();
@@ -1092,10 +1189,24 @@ function renderTagsSection() {
 }
 
 let _modalDate = null;
-let _modalExpIdx = null; // null = applica a tutte
+let _modalExpIdx = null;
 let _modalTags = [];
+let _modalContext = 'history'; // 'history' | 'extra'
+let _modalExtraIdx = null;
+
+function openTagModalExtra(idx) {
+  if (state.tags.length === 0) return;
+  _modalContext = 'extra';
+  _modalExtraIdx = idx;
+  const extra = state.extras[idx];
+  _modalTags = extra ? [...(extra.tags || [])] : [];
+  document.getElementById('tag-modal-title').textContent = 'tag per questa voce';
+  renderModalChips();
+  document.getElementById('tag-modal').classList.remove('hidden');
+}
 
 function openTagModal(date, expIdx) {
+  _modalContext = 'history';
   if (state.tags.length === 0) return;
   _modalDate = date;
   _modalExpIdx = expIdx;
@@ -1131,6 +1242,14 @@ function toggleModalTag(id) {
 }
 
 function confirmTagModal() {
+  if (_modalContext === 'extra') {
+    const extra = state.extras[_modalExtraIdx];
+    if (extra) extra.tags = [..._modalTags];
+    save();
+    closeTagModal();
+    renderExtras();
+    return;
+  }
   const exps = state.expenses[_modalDate] || [];
   if (_modalExpIdx === null) {
     exps.forEach(e => { e.tags = [..._modalTags]; });
@@ -1147,6 +1266,7 @@ function closeTagModal(e) {
   if (e && e.target !== document.getElementById('tag-modal')) return;
   document.getElementById('tag-modal').classList.add('hidden');
   _modalDate = null; _modalExpIdx = null; _modalTags = [];
+  _modalContext = 'history'; _modalExtraIdx = null;
 }
 
 function toggleHistoryExpand(date) {
@@ -1163,6 +1283,7 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
   if (name === 'storico') { renderChartLinea(); renderHistory(); renderTagsSection(); }
+  if (name === 'extra') { renderRecurring(); renderExtras(); }
 }
 
 // enter key on expense fields
