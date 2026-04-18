@@ -517,33 +517,41 @@ function fmtSigned(n) {
   return (n >= 0 ? '+' : '-') + fmt(n);
 }
 
-// --- FILL HISTORY GAPS (retroactive) ---
+// --- FILL HISTORY GAPS + RECOMPUTE CARRYOVER CHAIN ---
 function fillHistoryGaps() {
-  if (state.history.length < 2) return;
+  if (state.history.length === 0) return;
   const asc = state.history.slice().sort((a, b) => a.date < b.date ? -1 : 1);
-  const result = [asc[0]];
-  let changed = false;
-  for (let i = 1; i < asc.length; i++) {
-    const cursor = new Date(asc[i - 1].date);
-    cursor.setDate(cursor.getDate() + 1);
-    const target = new Date(asc[i].date);
-    while (cursor < target) {
-      const key = cursor.toISOString().split('T')[0];
-      const prevRemaining = result[result.length - 1].remaining;
-      const dayExpenses = state.expenses[key] || [];
-      const spent = parseFloat(dayExpenses.reduce((s, e) => s + e.amount, 0).toFixed(2));
-      const remaining = parseFloat((DAILY + prevRemaining - spent).toFixed(2));
-      result.push({ date: key, spent, carryover: prevRemaining, remaining });
+  const filled = [];
+  let carryover = asc[0].carryover; // trust oldest stored carryover as baseline
+  let prev = null;
+
+  for (let i = 0; i < asc.length; i++) {
+    // fill gap days between prev and current entry
+    if (prev) {
+      const cursor = new Date(prev.date + 'T12:00:00');
       cursor.setDate(cursor.getDate() + 1);
-      changed = true;
+      const target = new Date(asc[i].date + 'T12:00:00');
+      while (cursor < target) {
+        const key = cursor.toISOString().split('T')[0];
+        const spent = parseFloat((state.expenses[key] || []).reduce((s, e) => s + e.amount, 0).toFixed(2));
+        const remaining = parseFloat((DAILY + carryover - spent).toFixed(2));
+        filled.push({ date: key, spent, carryover, remaining });
+        carryover = remaining;
+        cursor.setDate(cursor.getDate() + 1);
+      }
     }
-    result.push(asc[i]);
+    // recompute existing entry with correct accumulated carryover
+    const spent = parseFloat((state.expenses[asc[i].date] || []).reduce((s, e) => s + e.amount, 0).toFixed(2));
+    const remaining = parseFloat((DAILY + carryover - spent).toFixed(2));
+    filled.push({ ...asc[i], spent, carryover, remaining });
+    carryover = remaining;
+    prev = asc[i];
   }
-  if (changed) {
-    result.sort((a, b) => a.date > b.date ? -1 : 1);
-    if (result.length > 60) result.length = 60;
-    state.history = result;
-  }
+
+  filled.sort((a, b) => a.date > b.date ? -1 : 1);
+  if (filled.length > 60) filled.length = 60;
+  state.history = filled;
+  state.carryover = carryover; // corrected carryover for today
 }
 
 // --- DAY ROLLOVER ---
