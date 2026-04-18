@@ -517,6 +517,35 @@ function fmtSigned(n) {
   return (n >= 0 ? '+' : '-') + fmt(n);
 }
 
+// --- FILL HISTORY GAPS (retroactive) ---
+function fillHistoryGaps() {
+  if (state.history.length < 2) return;
+  const asc = state.history.slice().sort((a, b) => a.date < b.date ? -1 : 1);
+  const result = [asc[0]];
+  let changed = false;
+  for (let i = 1; i < asc.length; i++) {
+    const cursor = new Date(asc[i - 1].date);
+    cursor.setDate(cursor.getDate() + 1);
+    const target = new Date(asc[i].date);
+    while (cursor < target) {
+      const key = cursor.toISOString().split('T')[0];
+      const prevRemaining = result[result.length - 1].remaining;
+      const dayExpenses = state.expenses[key] || [];
+      const spent = parseFloat(dayExpenses.reduce((s, e) => s + e.amount, 0).toFixed(2));
+      const remaining = parseFloat((DAILY + prevRemaining - spent).toFixed(2));
+      result.push({ date: key, spent, carryover: prevRemaining, remaining });
+      cursor.setDate(cursor.getDate() + 1);
+      changed = true;
+    }
+    result.push(asc[i]);
+  }
+  if (changed) {
+    result.sort((a, b) => a.date > b.date ? -1 : 1);
+    if (result.length > 60) result.length = 60;
+    state.history = result;
+  }
+}
+
 // --- DAY ROLLOVER ---
 function checkDayRollover() {
   const today = todayKey();
@@ -1135,6 +1164,7 @@ async function init() {
   overlay.style.display = 'flex';
   await loadState();
   overlay.style.display = 'none';
+  fillHistoryGaps();
   checkDayRollover();
   render();
   renderColorPicker();
