@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Budget">
-<meta name="theme-color" content="#ffffff" id="theme-color-meta">
+<meta name="theme-color" content="#ffffff">
 <title>Budget</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -22,16 +22,6 @@
     --nav-h: 60px;
     --radius: 12px; --radius-sm: 8px;
     --tr: 0.2s ease;
-  }
-  [data-theme="dark"] {
-    --bg: #111111; --bg2: #1c1c1c; --bg3: #242424;
-    --text: #e8e8e4; --text2: #9b9b97; --text3: #5f5e5a;
-    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.14);
-    --accent: #e8e8e4; --accent-bg: #242424;
-    --green: #5dcaa5; --green-bg: #085041; --green-mid: #97C459;
-    --red: #f09595; --red-bg: #501313;
-    --amber: #fac775; --amber-bg: #412402;
-    --blue: #85b7eb; --blue-bg: #042C53;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
@@ -56,7 +46,6 @@
   .header-title { font-size: 13px; font-weight: 500; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; }
   .header-right { display: flex; align-items: center; gap: 10px; }
   .header-date { font-size: 13px; color: var(--text3); }
-  .theme-badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--accent-bg); color: var(--text2); border: 0.5px solid var(--border); }
 
   /* HERO */
   .hero { padding: 28px 20px 16px; }
@@ -167,6 +156,11 @@
   .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: 11px; color: var(--text3); }
   .leg-sq { width: 8px; height: 8px; border-radius: 2px; display: inline-block; margin-right: 3px; vertical-align: middle; }
   .leg-line { width: 14px; height: 2px; border-radius: 1px; display: inline-block; margin-right: 3px; vertical-align: middle; }
+  .leg-ok   { background: var(--green); }
+  .leg-over { background: var(--red); }
+  .leg-warn { background: var(--amber); }
+  .leg-neutral { background: var(--text3); }
+  .leg-blue { background: var(--blue); }
 
   /* NAV */
   .nav {
@@ -217,7 +211,6 @@
     user-select: none;
   }
   .tag-chip.active { border-color: rgba(0,0,0,0.35); }
-  [data-theme="dark"] .tag-chip.active { border-color: rgba(255,255,255,0.45); }
   .tag-pill {
     display: inline-flex; align-items: center;
     padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 500;
@@ -293,7 +286,6 @@
     <span class="header-title">Budget</span>
     <div class="header-right">
       <span class="sync-badge idle" id="sync-badge" title="stato sincronizzazione">⟳</span>
-      <span class="theme-badge" id="theme-badge">☀️ chiaro</span>
       <span class="header-date" id="header-date"></span>
     </div>
   </div>
@@ -330,10 +322,10 @@
     <div class="section">
       <div class="section-label">ultimi 7 giorni</div>
       <div class="chart-legend">
-        <span><span class="leg-sq" style="background:#2d7a4f"></span>entro limite</span>
-        <span><span class="leg-sq" style="background:#a32d2d"></span>sforato</span>
-        <span><span class="leg-sq" style="background:#b86e00"></span>limite ok, carryover negativo</span>
-        <span><span class="leg-line" style="background:#888780"></span>limite €20</span>
+        <span><span class="leg-sq leg-ok"></span>entro limite</span>
+        <span><span class="leg-sq leg-over"></span>sforato</span>
+        <span><span class="leg-sq leg-warn"></span>limite ok, carryover negativo</span>
+        <span><span class="leg-line leg-neutral"></span>limite €20</span>
       </div>
       <div class="chart-container" style="height:160px">
         <canvas id="chartBarre" role="img" aria-label="Grafico a barre spese ultimi 7 giorni con limite 20 euro">Spese giornaliere degli ultimi 7 giorni.</canvas>
@@ -366,7 +358,7 @@
     <div class="section" style="padding-top:24px">
       <div class="section-label">andamento carryover</div>
       <div class="chart-legend">
-        <span><span class="leg-line" style="background:#185FA5"></span>carryover cumulato</span>
+        <span><span class="leg-line leg-blue"></span>carryover cumulato</span>
         <span style="margin-left:4px; font-size:11px; color:var(--text3)">sopra lo zero = in risparmio</span>
       </div>
       <div class="chart-container" style="height:160px">
@@ -525,38 +517,27 @@ function fmtSigned(n) {
   return (n >= 0 ? '+' : '-') + fmt(n);
 }
 
-// --- THEME ---
-function applyTheme() {
-  const h = new Date().getHours();
-  const isDark = h >= 20 || h < 7;
-  const app = document.getElementById('app');
-  const prevTheme = app.getAttribute('data-theme');
-  const newTheme = isDark ? 'dark' : 'light';
-  app.setAttribute('data-theme', newTheme);
-  document.getElementById('theme-badge').textContent = isDark ? '🌙 scuro' : '☀️ chiaro';
-  const meta = document.getElementById('theme-color-meta');
-  if (meta) meta.content = isDark ? '#111111' : '#ffffff';
-  if (prevTheme && prevTheme !== newTheme) {
-    if (chartBarre) { chartBarre.destroy(); chartBarre = null; }
-    if (chartLinea) { chartLinea.destroy(); chartLinea = null; }
-  }
-}
-
 // --- DAY ROLLOVER ---
 function checkDayRollover() {
   const today = todayKey();
   if (state.lastDate && state.lastDate !== today) {
-    const prev = state.expenses[state.lastDate] || [];
-    const spent = parseFloat(prev.reduce((s, e) => s + e.amount, 0).toFixed(2));
-    const remaining = parseFloat((DAILY + state.carryover - spent).toFixed(2));
-    state.history.unshift({
-      date: state.lastDate,
-      spent: spent,
-      carryover: state.carryover,
-      remaining: remaining
-    });
-    if (state.history.length > 60) state.history.pop();
-    state.carryover = remaining;
+    const cursor = new Date(state.lastDate);
+    const todayDate = new Date(today);
+    const pending = [];
+    while (cursor < todayDate) {
+      const key = cursor.toISOString().split('T')[0];
+      const dayExpenses = state.expenses[key] || [];
+      const spent = parseFloat(dayExpenses.reduce((s, e) => s + e.amount, 0).toFixed(2));
+      const remaining = parseFloat((DAILY + state.carryover - spent).toFixed(2));
+      pending.push({ date: key, spent, carryover: state.carryover, remaining });
+      state.carryover = remaining;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    // insert oldest→newest so history stays newest-first
+    for (let i = pending.length - 1; i >= 0; i--) {
+      state.history.unshift(pending[i]);
+    }
+    if (state.history.length > 60) state.history.length = 60;
   }
   state.lastDate = today;
   if (!state.expenses[today]) state.expenses[today] = [];
@@ -729,9 +710,8 @@ function renderChartBarre() {
     return '#b86e00';
   });
 
-  const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
-  const textColor = isDark ? '#5f5e5a' : '#9b9b97';
-  const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+  const textColor = '#9b9b97';
+  const gridColor = 'rgba(0,0,0,0.05)';
 
   if (chartBarre) {
     chartBarre.data.labels = labels;
@@ -800,9 +780,8 @@ function renderChartLinea() {
     if (chartLinea) { chartLinea.destroy(); chartLinea = null; }
     const canvas = document.getElementById('chartLinea');
     const ctx = canvas.getContext('2d');
-    const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = isDark ? '#5f5e5a' : '#9b9b97';
+    ctx.fillStyle = '#9b9b97';
     ctx.font = '13px -apple-system, system-ui';
     ctx.textAlign = 'center';
     ctx.fillText('dati disponibili dopo 2+ giorni', canvas.width / 2, canvas.height / 2);
@@ -816,10 +795,9 @@ function renderChartLinea() {
   });
   const data = days.map(d => parseFloat(d.remaining.toFixed(2)));
 
-  const isDark = document.getElementById('app').getAttribute('data-theme') === 'dark';
-  const textColor = isDark ? '#5f5e5a' : '#9b9b97';
-  const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
-  const lineColor = isDark ? '#85b7eb' : '#185FA5';
+  const textColor = '#9b9b97';
+  const gridColor = 'rgba(0,0,0,0.05)';
+  const lineColor = '#185FA5';
   const pointColors = data.map(v => v >= 0 ? lineColor : '#a32d2d');
 
   if (chartLinea) {
@@ -1154,7 +1132,6 @@ document.getElementById('exp-name').addEventListener('keydown', e => { if (e.key
 
 // ── Init asincrono ────────────────────────────────────────────────────────────
 async function init() {
-  applyTheme();
   const overlay = document.getElementById('loading-overlay');
   overlay.style.display = 'flex';
   await loadState();
@@ -1162,7 +1139,7 @@ async function init() {
   checkDayRollover();
   render();
   renderColorPicker();
-  setInterval(() => { applyTheme(); render(); }, 60000);
+  setInterval(() => render(), 60000);
 }
 init();
 </script>
