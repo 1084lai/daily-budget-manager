@@ -1,0 +1,184 @@
+<script>
+  import { getContext } from 'svelte';
+  import { store } from '../lib/store.js';
+  import { DAILY, todayKey, fmt, fmtSigned } from '../lib/utils.js';
+  import { API_LOAD, KV_KEY } from '../lib/utils.js';
+  import ChartBarre from './ChartBarre.svelte';
+
+  export let theme;
+  const openTagModal = getContext('openTagModal');
+
+  let expName = '';
+  let expAmount = '';
+  let expDate = todayKey();
+  let pendingTags = [];
+
+  $: s = $store;
+  $: today = todayKey();
+  $: todayExpenses = s.expenses[today] || [];
+  $: spent = parseFloat(todayExpenses.reduce((sum, e) => sum + e.amount, 0).toFixed(2));
+  $: budget = parseFloat((DAILY + s.carryover).toFixed(2));
+  $: available = parseFloat((budget - spent).toFixed(2));
+  $: pct = Math.min(100, budget > 0 ? (spent / budget) * 100 : 100);
+  $: heroClass = available > 5 ? 'pos' : available < 0 ? 'neg' : 'warn';
+  $: fillClass = pct >= 100 ? 'over' : pct > 75 ? 'warn' : '';
+  $: isPastDate = expDate && expDate < today;
+
+  function addExpense() {
+    const name = expName.trim();
+    const amount = parseFloat(expAmount.replace(',', '.'));
+    if (!name || isNaN(amount) || amount <= 0) return;
+    const dateKey = expDate || today;
+    if (dateKey > today) return;
+    store.addExpense(name, parseFloat(amount.toFixed(2)), dateKey, [...pendingTags]);
+    expName = ''; expAmount = ''; expDate = today; pendingTags = [];
+  }
+
+  function toggleTag(id) {
+    pendingTags = pendingTags.includes(id) ? pendingTags.filter(t => t !== id) : [...pendingTags, id];
+  }
+
+  function editSaldo() {
+    const v = prompt('Inserisci il saldo attuale della tua Postepay (€):');
+    if (v === null) return;
+    const n = parseFloat(v.replace(',', '.'));
+    if (!isNaN(n) && n >= 0) store.updateSaldo(parseFloat(n.toFixed(2)));
+  }
+
+  async function exportData() {
+    let payload;
+    try { const res = await fetch(API_LOAD); payload = await res.text(); }
+    catch { payload = localStorage.getItem(KV_KEY) || '{}'; }
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: `budget_${new Date().toISOString().slice(0,10)}.json` });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  let importInput;
+  function importData() { importInput.click(); }
+  async function handleImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (typeof parsed !== 'object' || !parsed.expenses) throw new Error('struttura non riconosciuta');
+      store.importState(parsed);
+      alert('Importazione completata.');
+    } catch (err) { alert('Errore importazione: ' + err.message); }
+    e.target.value = '';
+  }
+</script>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">disponibile oggi</div>
+  <div class="hero-amount {heroClass}">{available < 0 ? '-' : ''}{fmt(available)}</div>
+  <div class="hero-sub">speso: <b>{fmt(spent)}</b> &nbsp;·&nbsp; limite: <b>€20,00</b></div>
+  {#if s.carryover !== 0}
+    <div class="carryover-badge {s.carryover > 0 ? 'pos' : 'neg'}">
+      {s.carryover > 0 ? '+' : ''}{fmt(s.carryover)} da ieri
+    </div>
+  {/if}
+</div>
+
+<div class="progress-bar">
+  <div class="progress-fill {fillClass}" style="width:{pct}%"></div>
+</div>
+
+<!-- FORM -->
+<div class="section" style="margin-top:20px">
+  <div class="section-label">aggiungi spesa</div>
+
+  {#if available < 0}
+    <div class="alert alert-danger">Hai sforato di {fmt(available)} · scalato domani</div>
+  {:else if available < 3}
+    <div class="alert alert-warn">Rimangono solo {fmt(available)} per oggi</div>
+  {/if}
+
+  <div class="input-row">
+    <input class="input-field" type="text" bind:value={expName} placeholder="descrizione" autocomplete="off"
+      on:keydown={e => e.key === 'Enter' && document.getElementById('exp-amount-field').focus()} />
+    <input class="input-field" id="exp-amount-field" type="number" bind:value={expAmount} placeholder="€" step="0.01" min="0" style="max-width:90px"
+      on:keydown={e => e.key === 'Enter' && addExpense()} />
+    <button class="btn" on:click={addExpense}>+</button>
+  </div>
+  <div class="input-row" style="margin-bottom:4px">
+    <span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0;min-width:32px">data</span>
+    <input class="input-field" type="date" bind:value={expDate} style="flex:1;font-size:13px;padding:7px 10px" />
+    {#if isPastDate}<span class="date-badge">pregressa</span>{/if}
+  </div>
+  {#if s.tags.length > 0}
+    <div class="tag-chip-row">
+      {#each s.tags as t}
+        <span class="tag-chip" class:active={pendingTags.includes(t.id)}
+          style="background:{t.color}22;color:{t.color}" on:click={() => toggleTag(t.id)}>{t.name}</span>
+      {/each}
+    </div>
+  {/if}
+</div>
+
+<!-- SPESE DI OGGI -->
+<div class="section">
+  <div class="section-label">spese di oggi</div>
+  <div class="expenses-list">
+    {#if todayExpenses.length === 0}
+      <div class="empty">nessuna spesa registrata</div>
+    {:else}
+      {#each [...todayExpenses].reverse() as e, ri}
+        {@const i = todayExpenses.length - 1 - ri}
+        <div class="expense-item">
+          <div class="expense-info">
+            <div class="expense-name">{e.name}</div>
+            {#if s.tags.length > 0 && e.tags?.length > 0}
+              <div class="tag-pills-row">
+                {#each e.tags as tid}
+                  {@const tag = s.tags.find(t => t.id === tid)}
+                  {#if tag}<span class="tag-pill" style="background:{tag.color}22;color:{tag.color}">{tag.name}</span>{/if}
+                {/each}
+              </div>
+            {/if}
+            <div class="expense-time">{e.time}</div>
+          </div>
+          <div class="expense-amount">-{fmt(e.amount)}</div>
+          <button class="del-btn" on:click={() => store.delExpense(today, i)}>×</button>
+        </div>
+      {/each}
+    {/if}
+  </div>
+</div>
+
+<!-- CHART 7 GIORNI -->
+<div class="section">
+  <div class="section-label">ultimi 7 giorni</div>
+  <div class="chart-legend">
+    <span><span class="leg-sq leg-ok"></span>entro limite</span>
+    <span><span class="leg-sq leg-over"></span>sforato</span>
+    <span><span class="leg-sq leg-warn"></span>limite ok, carryover negativo</span>
+    <span><span class="leg-line leg-neutral"></span>limite €20</span>
+  </div>
+  {#key theme}
+    <ChartBarre {theme} />
+  {/key}
+</div>
+
+<!-- SALDO -->
+<div class="section" style="margin-top:20px">
+  <div class="section-label">saldo carta</div>
+  <div class="saldo-row">
+    <div class="saldo-display">{s.saldo !== null ? fmt(s.saldo) : '—'}</div>
+    <button class="btn-sm" on:click={editSaldo}>aggiorna</button>
+  </div>
+</div>
+
+<!-- DATI -->
+<div class="section" style="margin-top:20px">
+  <div class="section-label">dati</div>
+  <div class="data-actions">
+    <button class="btn-data" on:click={exportData}>⬇ esporta JSON</button>
+    <button class="btn-data" on:click={importData}>⬆ importa JSON</button>
+  </div>
+  <input type="file" bind:this={importInput} accept=".json,application/json" style="display:none" on:change={handleImport} />
+</div>
+
+<div style="height:20px"></div>

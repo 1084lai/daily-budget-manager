@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Bash(node *)",
+      "Bash(npm install *)",
+      "Bash(npm uninstall *)",
+      "Bash(node_modules/.bin/vite --version)",
+      "Bash(node_modules/.bin/svelte-check --version)",
+      "Bash(npm run *)"
+    ]
+  }
+}
