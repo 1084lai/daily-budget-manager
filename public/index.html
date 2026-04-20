@@ -271,6 +271,9 @@
     animation: spin 0.8s linear infinite;
   }
   .loading-label { font-size: 13px; color: var(--text3); }
+  .input-field[type="date"] { color-scheme: light; }
+  [data-theme="dark"] .input-field[type="date"] { color-scheme: dark; }
+  .date-badge { font-size: 11px; color: var(--amber); background: var(--amber-bg); padding: 2px 8px; border-radius: 20px; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -310,6 +313,11 @@
         <input class="input-field" type="text" id="exp-name" placeholder="descrizione" autocomplete="off" />
         <input class="input-field" type="number" id="exp-amount" placeholder="€" step="0.01" min="0" style="max-width:90px" />
         <button class="btn" onclick="addExpense()">+</button>
+      </div>
+      <div class="input-row" style="margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0;min-width:32px">data</span>
+        <input class="input-field" type="date" id="exp-date" style="flex:1;font-size:13px;padding:7px 10px" onchange="onExpDateChange()" />
+        <span id="exp-date-badge" style="display:none" class="date-badge">pregressa</span>
       </div>
       <div class="tag-chip-row" id="tag-chip-row-add"></div>
     </div>
@@ -940,6 +948,7 @@ function renderHistory() {
             <span class="history-exp-name">${e.name}</span>
             <span class="history-exp-amount">-${fmt(e.amount)}</span>
             ${tagBtn}
+            <button class="del-btn" style="margin-left:4px;flex-shrink:0" onclick="delPastExpense('${h.date}',${expIdx})">×</button>
           </div>
           ${pills ? `<div class="tag-pills-row">${pills}</div>` : ''}
         </div>`;
@@ -948,7 +957,7 @@ function renderHistory() {
     return `<div class="history-item">
       <div class="history-date">${dateStr}</div>
       <div class="history-row" onclick="toggleHistoryExpand('${h.date}')">
-        <span class="history-spent">speso ${fmt(h.spent)}</span>
+        <span class="history-spent">speso ${fmt(parseFloat((state.expenses[h.date]||[]).reduce((s,e)=>s+e.amount,0).toFixed(2)))}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="history-carry" style="color:var(--${isPos ? 'green' : 'red'})">${fmtSigned(h.remaining)}</span>
           ${dayTagBtn}
@@ -998,24 +1007,59 @@ function renderRecurring() {
   document.getElementById('rec-total-y').textContent = fmt(total * 12);
 }
 
+// --- CARRYOVER REBUILD ---
+function rebuildCarryoverFrom(dateKey) {
+  const sorted = state.history.slice().sort((a, b) => a.date < b.date ? -1 : 1);
+  const idx = sorted.findIndex(h => h.date === dateKey);
+  if (idx === -1) return;
+  for (let i = idx; i < sorted.length; i++) {
+    const h = sorted[i];
+    h.spent = parseFloat((state.expenses[h.date] || []).reduce((s, e) => s + e.amount, 0).toFixed(2));
+    h.remaining = parseFloat((DAILY + h.carryover - h.spent).toFixed(2));
+    if (i + 1 < sorted.length) sorted[i + 1].carryover = h.remaining;
+  }
+  state.carryover = sorted[sorted.length - 1].remaining;
+  state.history = sorted.reverse();
+}
+
 // --- ACTIONS ---
+function onExpDateChange() {
+  const today = todayKey();
+  const val = document.getElementById('exp-date').value;
+  const badge = document.getElementById('exp-date-badge');
+  badge.style.display = (val && val < today) ? 'inline' : 'none';
+}
+
 function addExpense() {
   const name = document.getElementById('exp-name').value.trim();
   const raw = document.getElementById('exp-amount').value.replace(',', '.');
   const amount = parseFloat(raw);
   if (!name || isNaN(amount) || amount <= 0) return;
   const today = todayKey();
+  const dateKey = document.getElementById('exp-date').value || today;
+  if (dateKey > today) return;
   const now = new Date();
   const time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  state.expenses[today].push({ name, amount: parseFloat(amount.toFixed(2)), time, tags: [..._pendingTags] });
+  if (!state.expenses[dateKey]) state.expenses[dateKey] = [];
+  state.expenses[dateKey].push({ name, amount: parseFloat(amount.toFixed(2)), time, tags: [..._pendingTags] });
+  if (dateKey < today) rebuildCarryoverFrom(dateKey);
   document.getElementById('exp-name').value = '';
   document.getElementById('exp-amount').value = '';
+  document.getElementById('exp-date').value = today;
+  document.getElementById('exp-date-badge').style.display = 'none';
   _pendingTags = [];
   save(); render();
 }
 
 function delExpense(i) {
   state.expenses[todayKey()].splice(i, 1);
+  save(); render();
+}
+
+function delPastExpense(dateKey, i) {
+  if (!state.expenses[dateKey]) return;
+  state.expenses[dateKey].splice(i, 1);
+  rebuildCarryoverFrom(dateKey);
   save(); render();
 }
 
@@ -1297,6 +1341,7 @@ async function init() {
   await loadState();
   overlay.style.display = 'none';
   fillHistoryGaps();
+  document.getElementById('exp-date').value = todayKey();
   checkDayRollover();
   render();
   renderColorPicker();

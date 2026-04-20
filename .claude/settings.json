@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "agent",
+            "if": "Bash(git commit *)",
+            "prompt": "Un commit è appena stato eseguito. Aggiorna CLAUDE.md se il commit ha introdotto cambiamenti rilevanti.\n\nPassi:\n1. Esegui: git log -1 --name-status --format='%H %s'\n2. Se public/index.html è cambiato, esegui: git diff HEAD~1 HEAD -- public/index.html\n3. Leggi il CLAUDE.md attuale\n4. Aggiorna CLAUDE.md solo se necessario: nuove feature, funzioni aggiunte/rimosse, costanti cambiate, nuove sezioni UI, cambi all'architettura di persistenza. NON aggiungere una sezione con la storia dei commit. Aggiorna solo le sezioni che descrivono come funziona il progetto.\n\nSe il commit ha toccato solo CLAUDE.md stesso, o fix minori senza impatto sull'architettura, non fare nulla.",
+            "timeout": 90,
+            "statusMessage": "Aggiornamento CLAUDE.md..."
+          }
+        ]
+      }
+    ]
+  }
+}
