@@ -407,6 +407,7 @@
       <div class="input-row">
         <input class="input-field" type="text" id="rec-name" placeholder="nome (es. Netflix)" autocomplete="off" />
         <input class="input-field" type="number" id="rec-amount" placeholder="€/mese" step="0.01" min="0" style="max-width:90px" />
+        <input class="input-field" type="number" id="rec-day" placeholder="gg" min="1" max="31" style="max-width:58px" />
         <button class="btn" onclick="addRecurring()">+</button>
       </div>
       <div id="recurring-list"><div class="empty">nessun abbonamento</div></div>
@@ -425,6 +426,10 @@
         <input class="input-field" type="text" id="extra-name" placeholder="descrizione" autocomplete="off" />
         <input class="input-field" type="number" id="extra-amount" placeholder="€" step="0.01" min="0" style="max-width:90px" />
         <button class="btn" onclick="addExtra()">+</button>
+      </div>
+      <div class="input-row" style="margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0;min-width:32px">data</span>
+        <input class="input-field" type="date" id="extra-date" style="flex:1;font-size:13px;padding:7px 10px" />
       </div>
       <div class="tag-chip-row" id="tag-chip-row-extra"></div>
       <div id="extras-list"><div class="empty">nessuna spesa straordinaria</div></div>
@@ -993,7 +998,7 @@ function renderRecurring() {
     `<div class="recurring-item">
       <div>
         <div class="recurring-name">${r.name}</div>
-        <div class="recurring-detail">ricorrente mensile</div>
+        <div class="recurring-detail">${r.day ? `ogni mese il giorno ${r.day}` : 'ricorrente mensile'}</div>
       </div>
       <div class="recurring-right">
         <span class="recurring-amount">${fmt(r.amount)}/mese</span>
@@ -1075,9 +1080,12 @@ function addRecurring() {
   const raw = document.getElementById('rec-amount').value.replace(',', '.');
   const amount = parseFloat(raw);
   if (!name || isNaN(amount) || amount <= 0) return;
-  state.recurring.push({ name, amount: parseFloat(amount.toFixed(2)) });
+  const dayRaw = parseInt(document.getElementById('rec-day').value, 10);
+  const day = (!isNaN(dayRaw) && dayRaw >= 1 && dayRaw <= 31) ? dayRaw : null;
+  state.recurring.push({ name, amount: parseFloat(amount.toFixed(2)), day });
   document.getElementById('rec-name').value = '';
   document.getElementById('rec-amount').value = '';
+  document.getElementById('rec-day').value = '';
   save(); renderRecurring();
 }
 
@@ -1093,15 +1101,17 @@ function addExtra() {
   const amount = parseFloat(raw);
   if (!name || isNaN(amount) || amount <= 0) return;
   const now = new Date();
+  const dateVal = document.getElementById('extra-date').value || todayKey();
   state.extras.push({
     name,
     amount: parseFloat(amount.toFixed(2)),
-    date: todayKey(),
+    date: dateVal,
     time: String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'),
     tags: [..._pendingExtraTags]
   });
   document.getElementById('extra-name').value = '';
   document.getElementById('extra-amount').value = '';
+  document.getElementById('extra-date').value = todayKey();
   _pendingExtraTags = [];
   save(); renderExtras();
 }
@@ -1342,6 +1352,7 @@ async function init() {
   overlay.style.display = 'none';
   fillHistoryGaps();
   document.getElementById('exp-date').value = todayKey();
+  document.getElementById('extra-date').value = todayKey();
   checkDayRollover();
   render();
   renderColorPicker();
