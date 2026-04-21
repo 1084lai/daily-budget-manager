@@ -7,6 +7,7 @@
   import TabOggi from './components/TabOggi.svelte';
   import TabStorico from './components/TabStorico.svelte';
   import TabExtra from './components/TabExtra.svelte';
+  import TabUtils from './components/TabUtils.svelte';
 
   const THEME_KEY = 'theme_pref';
 
@@ -96,6 +97,8 @@
     <TabStorico {theme} />
   {:else if activeTab === 'extra'}
     <TabExtra />
+  {:else if activeTab === 'utils'}
+    <TabUtils />
   {/if}
 
   <Nav {activeTab} onSwitch={tab => activeTab = tab} />

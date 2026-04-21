@@ -2,7 +2,6 @@
   import { getContext } from 'svelte';
   import { store } from '../lib/store.js';
   import { DAILY, todayKey, fmt, fmtSigned } from '../lib/utils.js';
-  import { API_LOAD, KV_KEY } from '../lib/utils.js';
   import ChartBarre from './ChartBarre.svelte';
 
   export let theme;
@@ -45,29 +44,6 @@
     if (!isNaN(n) && n >= 0) store.updateSaldo(parseFloat(n.toFixed(2)));
   }
 
-  async function exportData() {
-    let payload;
-    try { const res = await fetch(API_LOAD); payload = await res.text(); }
-    catch { payload = localStorage.getItem(KV_KEY) || '{}'; }
-    const blob = new Blob([payload], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = Object.assign(document.createElement('a'), { href: url, download: `budget_${new Date().toISOString().slice(0,10)}.json` });
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  }
-
-  let importInput;
-  function importData() { importInput.click(); }
-  async function handleImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(await file.text());
-      if (typeof parsed !== 'object' || !parsed.expenses) throw new Error('struttura non riconosciuta');
-      store.importState(parsed);
-      alert('Importazione completata.');
-    } catch (err) { alert('Errore importazione: ' + err.message); }
-    e.target.value = '';
-  }
 </script>
 
 <!-- HERO -->
@@ -171,14 +147,5 @@
   </div>
 </div>
 
-<!-- DATI -->
-<div class="section" style="margin-top:20px">
-  <div class="section-label">dati</div>
-  <div class="data-actions">
-    <button class="btn-data" on:click={exportData}>⬇ esporta JSON</button>
-    <button class="btn-data" on:click={importData}>⬆ importa JSON</button>
-  </div>
-  <input type="file" bind:this={importInput} accept=".json,application/json" style="display:none" on:change={handleImport} />
-</div>
 
 <div style="height:20px"></div>

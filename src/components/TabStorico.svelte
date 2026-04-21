@@ -1,7 +1,7 @@
 <script>
   import { getContext } from 'svelte';
   import { store } from '../lib/store.js';
-  import { fmt, fmtSigned, dateLabel, TAG_PALETTE } from '../lib/utils.js';
+  import { fmt, fmtSigned, dateLabel } from '../lib/utils.js';
   import ChartLinea from './ChartLinea.svelte';
 
   export let theme;
@@ -13,16 +13,6 @@
 
   let expanded = {};
   function toggleExpand(date) { expanded = { ...expanded, [date]: !expanded[date] }; }
-
-  // Tags
-  let tagName = '';
-  let selectedColor = TAG_PALETTE[0];
-
-  function addTag() {
-    if (!tagName.trim()) return;
-    store.addTag(tagName.trim(), selectedColor);
-    tagName = '';
-  }
 
   function realSpent(date) {
     return parseFloat((s.expenses[date] || []).reduce((sum, e) => sum + e.amount, 0).toFixed(2));
@@ -52,33 +42,6 @@
       <div class="metric-value {s.carryover >= 0 ? 'pos' : 'neg'}">{(s.carryover >= 0 ? '+' : '-')}{fmt(s.carryover)}</div>
     </div>
   </div>
-</div>
-
-<!-- TAG MANAGER -->
-<div class="section" style="margin-top:20px">
-  <div class="section-label">tag</div>
-  <div class="input-row" style="align-items:center">
-    <input class="input-field" type="text" bind:value={tagName} placeholder="nome tag" autocomplete="off"
-      on:keydown={e => e.key === 'Enter' && addTag()} />
-    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
-      {#each TAG_PALETTE as c}
-        <span class="color-swatch" class:active={selectedColor === c} style="background:{c}"
-          on:click={() => selectedColor = c}></span>
-      {/each}
-    </div>
-    <button class="btn" on:click={addTag}>+</button>
-  </div>
-  {#if s.tags.length === 0}
-    <div class="empty" style="padding:12px 0">nessun tag creato</div>
-  {:else}
-    {#each s.tags as t}
-      <div class="tag-manage-item">
-        <span class="tag-color-dot" style="background:{t.color}"></span>
-        <span style="flex:1;font-size:14px;color:var(--text)">{t.name}</span>
-        <button class="del-btn" on:click={() => store.delTag(t.id)}>×</button>
-      </div>
-    {/each}
-  {/if}
 </div>
 
 <!-- STORICO -->
