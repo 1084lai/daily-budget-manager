@@ -3,7 +3,16 @@
   import { TAG_PALETTE } from '../lib/utils.js';
   import { API_LOAD, KV_KEY } from '../lib/utils.js';
 
+  import { fmt } from '../lib/utils.js';
+
   $: s = $store;
+
+  function editSaldo() {
+    const v = prompt('Inserisci il saldo attuale della tua Postepay (€):');
+    if (v === null) return;
+    const n = parseFloat(String(v).replace(',', '.'));
+    if (!isNaN(n) && n >= 0) store.updateSaldo(parseFloat(n.toFixed(2)));
+  }
 
   // Tag
   let tagName = '';
@@ -40,6 +49,15 @@
     e.target.value = '';
   }
 </script>
+
+<!-- SALDO -->
+<div class="section" style="padding-top:24px">
+  <div class="section-label">saldo carta</div>
+  <div class="saldo-row">
+    <div class="saldo-display">{s.saldo !== null ? fmt(s.saldo) : '—'}</div>
+    <button class="btn-sm" on:click={editSaldo}>aggiorna</button>
+  </div>
+</div>
 
 <!-- TAG MANAGER -->
 <div class="section" style="padding-top:24px">

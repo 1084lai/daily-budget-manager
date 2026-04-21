@@ -36,12 +36,6 @@
     pendingTags = pendingTags.includes(id) ? pendingTags.filter(t => t !== id) : [...pendingTags, id];
   }
 
-  function editSaldo() {
-    const v = prompt('Inserisci il saldo attuale della tua Postepay (€):');
-    if (v === null) return;
-    const n = parseFloat(String(v).replace(',', '.'));
-    if (!isNaN(n) && n >= 0) store.updateSaldo(parseFloat(n.toFixed(2)));
-  }
 
 </script>
 
@@ -79,8 +73,7 @@
     <button class="btn" on:click={addExpense}>+</button>
   </div>
   <div class="input-row" style="margin-bottom:4px">
-    <span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0;min-width:32px">data</span>
-    <input class="input-field" type="date" bind:value={expDate} style="flex:1;font-size:13px;padding:7px 10px" />
+<input class="input-field" type="date" bind:value={expDate} style="flex:1;font-size:13px;padding:7px 10px" />
     {#if isPastDate}<span class="date-badge">pregressa</span>{/if}
   </div>
   {#if s.tags.length > 0}
@@ -140,7 +133,6 @@
   <div class="section-label">saldo carta</div>
   <div class="saldo-row">
     <div class="saldo-display">{s.saldo !== null ? fmt(s.saldo) : '—'}</div>
-    <button class="btn-sm" on:click={editSaldo}>aggiorna</button>
   </div>
 </div>
 
