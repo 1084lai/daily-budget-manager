@@ -91,15 +91,6 @@
   <ChartBarre />
 </div>
 
-<!-- SALDO -->
-{#if s.saldo !== null}
-<div class="section" style="margin-top:20px">
-  <div class="section-label">saldo carta</div>
-  <div class="saldo-row">
-    <div class="saldo-display">{fmt(s.saldo)}</div>
-  </div>
-</div>
-{/if}
 
 
 <div style="height:20px"></div>
