@@ -4,7 +4,6 @@
   import { DAILY, todayKey, fmt, fmtSigned } from '../lib/utils.js';
   import ChartBarre from './ChartBarre.svelte';
 
-  export let theme;
   const openTagModal = getContext('openTagModal');
 
   let expName = '';
@@ -133,9 +132,7 @@
     <span><span class="leg-sq leg-warn"></span>limite ok, carryover negativo</span>
     <span><span class="leg-line leg-neutral"></span>limite €20</span>
   </div>
-  {#key theme}
-    <ChartBarre {theme} />
-  {/key}
+  <ChartBarre />
 </div>
 
 <!-- SALDO -->

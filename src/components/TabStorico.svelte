@@ -4,7 +4,6 @@
   import { fmt, fmtSigned, dateLabel } from '../lib/utils.js';
   import ChartLinea from './ChartLinea.svelte';
 
-  export let theme;
   const openTagModal = getContext('openTagModal');
 
   $: s = $store;
@@ -26,9 +25,7 @@
     <span><span class="leg-line leg-blue"></span>carryover cumulato</span>
     <span style="margin-left:4px;font-size:11px;color:var(--text3)">sopra lo zero = in risparmio</span>
   </div>
-  {#key theme}
-    <ChartLinea {theme} />
-  {/key}
+  <ChartLinea />
 </div>
 
 <!-- STATS -->

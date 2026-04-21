@@ -4,12 +4,8 @@
   import { store } from '../lib/store.js';
   import { DAILY, todayKey, fmt } from '../lib/utils.js';
 
-  export let theme = 'light';
-
   let canvas;
   let chart = null;
-
-  function isDark() { return theme === 'dark'; }
 
   function buildDays(s) {
     const today = todayKey();
@@ -30,9 +26,9 @@
   }
 
   function barColor(d) {
-    if (d.remaining >= 0) return isDark() ? '#4ecfa0' : '#2d7a4f';
-    if (d.spent > DAILY)  return isDark() ? '#f08888' : '#a32d2d';
-    return isDark() ? '#f5bd5a' : '#b86e00';
+    if (d.remaining >= 0) return '#2d7a4f';
+    if (d.spent > DAILY)  return '#a32d2d';
+    return '#b86e00';
   }
 
   function render(s) {
@@ -40,8 +36,8 @@
     const labels = days.map(d => new Date(d.date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' }));
     const data = days.map(d => parseFloat(d.spent.toFixed(2)));
     const colors = days.map(barColor);
-    const textColor = isDark() ? '#6b6a63' : '#9b9b97';
-    const gridColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+    const textColor = '#9b9b97';
+    const gridColor = 'rgba(0,0,0,0.05)';
 
     if (chart) {
       chart.data.labels = labels;
@@ -81,8 +77,6 @@
   });
 
   onDestroy(() => { if (chart) { chart.destroy(); chart = null; } });
-
-  $: if (chart && canvas) { chart.destroy(); chart = null; store.subscribe(s => render(s))(); }
 </script>
 
 <div class="chart-container" style="height:160px">

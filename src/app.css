@@ -11,16 +11,6 @@
   --radius: 12px; --radius-sm: 8px;
   --tr: 0.2s ease;
 }
-[data-theme="dark"] {
-  --bg: #0f0f0e; --bg2: #191918; --bg3: #222220;
-  --text: #e8e8e3; --text2: #9a9a92; --text3: #6b6a63;
-  --border: rgba(255,255,255,0.09); --border2: rgba(255,255,255,0.18);
-  --accent: #e8e8e3; --accent-bg: #222220;
-  --green: #4ecfa0; --green-bg: #0c4237; --green-mid: #90cc54;
-  --red: #f08888; --red-bg: #461111;
-  --amber: #f5bd5a; --amber-bg: #3c1f00;
-  --blue: #7ab2ea; --blue-bg: #0c2d4e;
-}
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
 body {
@@ -76,7 +66,6 @@ body {
 .input-field:focus { border-color: var(--border2); }
 .input-field::placeholder { color: var(--text3); }
 .input-field[type="date"] { color-scheme: light; }
-[data-theme="dark"] .input-field[type="date"] { color-scheme: dark; }
 .btn { background: var(--accent); color: var(--bg); border: none; border-radius: var(--radius-sm); padding: 10px 16px; font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity var(--tr); white-space: nowrap; }
 .btn:active { opacity: 0.7; }
 .btn-sm { font-size: 12px; padding: 4px 11px; background: var(--bg2); color: var(--text2); border: 0.5px solid var(--border); border-radius: 20px; cursor: pointer; }
@@ -152,7 +141,6 @@ body {
 .tag-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; min-height: 28px; }
 .tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1.5px solid transparent; transition: opacity var(--tr), border-color var(--tr); user-select: none; }
 .tag-chip.active { border-color: rgba(0,0,0,0.35); }
-[data-theme="dark"] .tag-chip.active { border-color: rgba(255,255,255,0.45); }
 .tag-pill { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 20px; font-size: 10px; font-weight: 500; margin-right: 3px; margin-top: 3px; }
 .tag-pills-row { display: flex; flex-wrap: wrap; margin-top: 2px; }
 .color-swatch { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color var(--tr); flex-shrink: 0; }

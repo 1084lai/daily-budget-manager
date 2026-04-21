@@ -3,12 +3,12 @@
   import Chart from 'chart.js/auto';
   import { store } from '../lib/store.js';
 
-  export let theme = 'light';
-
   let canvas;
   let chart = null;
 
-  function isDark() { return theme === 'dark'; }
+  const lineColor = '#185FA5';
+  const textColor = '#9b9b97';
+  const gridColor = 'rgba(0,0,0,0.05)';
 
   function render(s) {
     if (s.history.length < 2) {
@@ -16,7 +16,7 @@
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = isDark() ? '#6b6a63' : '#9b9b97';
+      ctx.fillStyle = '#9b9b97';
       ctx.font = '13px -apple-system, system-ui';
       ctx.textAlign = 'center';
       ctx.fillText('dati disponibili dopo 2+ giorni', canvas.width / 2, canvas.height / 2);
@@ -26,10 +26,7 @@
     const days = s.history.slice().reverse().slice(-14);
     const labels = days.map(d => new Date(d.date + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' }));
     const data = days.map(d => parseFloat(d.remaining.toFixed(2)));
-    const lineColor = isDark() ? '#7ab2ea' : '#185FA5';
-    const pointColors = data.map(v => v >= 0 ? lineColor : (isDark() ? '#f08888' : '#a32d2d'));
-    const textColor = isDark() ? '#6b6a63' : '#9b9b97';
-    const gridColor = isDark() ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+    const pointColors = data.map(v => v >= 0 ? lineColor : '#a32d2d');
 
     if (chart) {
       chart.data.labels = labels;

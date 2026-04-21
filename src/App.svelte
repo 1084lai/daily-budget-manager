@@ -9,33 +9,13 @@
   import TabExtra from './components/TabExtra.svelte';
   import TabUtils from './components/TabUtils.svelte';
 
-  const THEME_KEY = 'theme_pref';
-
   let activeTab = 'oggi';
-  let theme = 'light';
   let loading = true;
 
-  // Tag modal state
   let modalOpen = false;
   let modalTitle = '';
   let modalInitTags = [];
   let modalCtx = null;
-
-  function applyTheme() {
-    const pref = localStorage.getItem(THEME_KEY);
-    const h = new Date().getHours();
-    const autoDark = h >= 20 || h < 7;
-    theme = pref !== null ? pref : (autoDark ? 'dark' : 'light');
-    const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.content = theme === 'dark' ? '#0f0f0e' : '#ffffff';
-  }
-
-  function toggleTheme() {
-    theme = theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(THEME_KEY, theme);
-    const meta = document.getElementById('theme-color-meta');
-    if (meta) meta.content = theme === 'dark' ? '#0f0f0e' : '#ffffff';
-  }
 
   function openTagModal(ctx) {
     const s = $store;
@@ -74,14 +54,12 @@
   }
 
   onMount(async () => {
-    applyTheme();
     await store.init();
     loading = false;
-    setInterval(applyTheme, 60000);
   });
 </script>
 
-<div class="app" data-theme={theme}>
+<div class="app">
   {#if loading}
     <div class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -89,12 +67,12 @@
     </div>
   {/if}
 
-  <Header {theme} onToggleTheme={toggleTheme} />
+  <Header />
 
   {#if activeTab === 'oggi'}
-    <TabOggi {theme} />
+    <TabOggi />
   {:else if activeTab === 'storico'}
-    <TabStorico {theme} />
+    <TabStorico />
   {:else if activeTab === 'extra'}
     <TabExtra />
   {:else if activeTab === 'utils'}
