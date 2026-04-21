@@ -2,6 +2,7 @@
   import { getContext } from 'svelte';
   import { store } from '../lib/store.js';
   import { fmt, todayKey } from '../lib/utils.js';
+  import ExpenseForm from './ExpenseForm.svelte';
 
   const openTagModal = getContext('openTagModal');
 
@@ -23,26 +24,6 @@
   }
 
   $: recTotal = s.recurring.reduce((sum, r) => sum + r.amount, 0);
-
-  // Extras
-  let extraName = '';
-  let extraAmount = '';
-  let extraDate = todayKey();
-  let pendingExtraTags = [];
-
-  function addExtra() {
-    const name = extraName.trim();
-    const amount = parseFloat(String(extraAmount).replace(',', '.'));
-    if (!name || isNaN(amount) || amount <= 0) return;
-    store.addExtra(name, parseFloat(amount.toFixed(2)), extraDate || todayKey(), [...pendingExtraTags]);
-    extraName = ''; extraAmount = ''; extraDate = todayKey(); pendingExtraTags = [];
-  }
-
-  function toggleExtraTag(id) {
-    pendingExtraTags = pendingExtraTags.includes(id)
-      ? pendingExtraTags.filter(t => t !== id)
-      : [...pendingExtraTags, id];
-  }
 
   $: extraTotal = s.extras.reduce((sum, e) => sum + e.amount, 0);
 </script>
@@ -85,24 +66,8 @@
 <!-- STRAORDINARIE -->
 <div class="section" style="margin-top:20px">
   <div class="section-label">spese straordinarie</div>
-  <div class="input-row">
-    <input class="input-field" type="text" bind:value={extraName} placeholder="descrizione" autocomplete="off"
-      on:keydown={e => e.key === 'Enter' && addExtra()} />
-    <input class="input-field" type="number" bind:value={extraAmount} placeholder="€" step="0.01" min="0" style="max-width:90px" />
-    <button class="btn" on:click={addExtra}>+</button>
-  </div>
-  <div class="input-row" style="margin-bottom:4px">
-    <span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0;min-width:32px">data</span>
-    <input class="input-field" type="date" bind:value={extraDate} style="flex:1;font-size:13px;padding:7px 10px" />
-  </div>
-  {#if s.tags.length > 0}
-    <div class="tag-chip-row">
-      {#each s.tags as t}
-        <span class="tag-chip" class:active={pendingExtraTags.includes(t.id)}
-          style="background:{t.color}22;color:{t.color}" on:click={() => toggleExtraTag(t.id)}>{t.name}</span>
-      {/each}
-    </div>
-  {/if}
+  <ExpenseForm tags={s.tags}
+    on:add={e => store.addExtra(e.detail.name, e.detail.amount, e.detail.date, e.detail.tags)} />
   {#if s.extras.length === 0}
     <div class="empty">nessuna spesa straordinaria</div>
   {:else}

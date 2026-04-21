@@ -3,13 +3,9 @@
   import { store } from '../lib/store.js';
   import { DAILY, todayKey, fmt, fmtSigned } from '../lib/utils.js';
   import ChartBarre from './ChartBarre.svelte';
+  import ExpenseForm from './ExpenseForm.svelte';
 
   const openTagModal = getContext('openTagModal');
-
-  let expName = '';
-  let expAmount = '';
-  let expDate = todayKey();
-  let pendingTags = [];
 
   $: s = $store;
   $: today = todayKey();
@@ -20,22 +16,6 @@
   $: pct = Math.min(100, budget > 0 ? (spent / budget) * 100 : 100);
   $: heroClass = available > 5 ? 'pos' : available < 0 ? 'neg' : 'warn';
   $: fillClass = pct >= 100 ? 'over' : pct > 75 ? 'warn' : '';
-  $: isPastDate = expDate && expDate < today;
-
-  function addExpense() {
-    const name = expName.trim();
-    const amount = parseFloat(String(expAmount).replace(',', '.'));
-    if (!name || isNaN(amount) || amount <= 0) return;
-    const dateKey = expDate || today;
-    if (dateKey > today) return;
-    store.addExpense(name, parseFloat(amount.toFixed(2)), dateKey, [...pendingTags]);
-    expName = ''; expAmount = ''; expDate = today; pendingTags = [];
-  }
-
-  function toggleTag(id) {
-    pendingTags = pendingTags.includes(id) ? pendingTags.filter(t => t !== id) : [...pendingTags, id];
-  }
-
 
 </script>
 
@@ -65,25 +45,8 @@
     <div class="alert alert-warn">Rimangono solo {fmt(available)} per oggi</div>
   {/if}
 
-  <div class="input-row">
-    <input class="input-field" type="text" bind:value={expName} placeholder="descrizione" autocomplete="off"
-      on:keydown={e => e.key === 'Enter' && document.getElementById('exp-amount-field').focus()} />
-    <input class="input-field" id="exp-amount-field" type="number" bind:value={expAmount} placeholder="€" step="0.01" min="0" style="max-width:90px"
-      on:keydown={e => e.key === 'Enter' && addExpense()} />
-    <button class="btn" on:click={addExpense}>+</button>
-  </div>
-  <div class="input-row" style="margin-bottom:4px">
-<input class="input-field" type="date" bind:value={expDate} style="flex:1;font-size:13px;padding:7px 10px" />
-    {#if isPastDate}<span class="date-badge">pregressa</span>{/if}
-  </div>
-  {#if s.tags.length > 0}
-    <div class="tag-chip-row">
-      {#each s.tags as t}
-        <span class="tag-chip" class:active={pendingTags.includes(t.id)}
-          style="background:{t.color}22;color:{t.color}" on:click={() => toggleTag(t.id)}>{t.name}</span>
-      {/each}
-    </div>
-  {/if}
+  <ExpenseForm tags={s.tags} maxDate={today}
+    on:add={e => store.addExpense(e.detail.name, e.detail.amount, e.detail.date, e.detail.tags)} />
 </div>
 
 <!-- SPESE DI OGGI -->
