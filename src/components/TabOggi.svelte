@@ -25,7 +25,7 @@
 
   function addExpense() {
     const name = expName.trim();
-    const amount = parseFloat(expAmount.replace(',', '.'));
+    const amount = parseFloat(String(expAmount).replace(',', '.'));
     if (!name || isNaN(amount) || amount <= 0) return;
     const dateKey = expDate || today;
     if (dateKey > today) return;
@@ -40,7 +40,7 @@
   function editSaldo() {
     const v = prompt('Inserisci il saldo attuale della tua Postepay (€):');
     if (v === null) return;
-    const n = parseFloat(v.replace(',', '.'));
+    const n = parseFloat(String(v).replace(',', '.'));
     if (!isNaN(n) && n >= 0) store.updateSaldo(parseFloat(n.toFixed(2)));
   }
 

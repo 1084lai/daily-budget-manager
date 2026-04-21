@@ -14,7 +14,7 @@
 
   function addRecurring() {
     const name = recName.trim();
-    const amount = parseFloat(recAmount.replace(',', '.'));
+    const amount = parseFloat(String(recAmount).replace(',', '.'));
     if (!name || isNaN(amount) || amount <= 0) return;
     const dayVal = parseInt(recDay, 10);
     const day = (!isNaN(dayVal) && dayVal >= 1 && dayVal <= 31) ? dayVal : null;
@@ -32,7 +32,7 @@
 
   function addExtra() {
     const name = extraName.trim();
-    const amount = parseFloat(extraAmount.replace(',', '.'));
+    const amount = parseFloat(String(extraAmount).replace(',', '.'));
     if (!name || isNaN(amount) || amount <= 0) return;
     store.addExtra(name, parseFloat(amount.toFixed(2)), extraDate || todayKey(), [...pendingExtraTags]);
     extraName = ''; extraAmount = ''; extraDate = todayKey(); pendingExtraTags = [];
