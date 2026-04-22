@@ -1,15 +1,5 @@
 import { writable } from 'svelte/store';
-import { DAILY, KV_KEY, TOKEN_KEY, API_LOAD, API_SAVE, API_LOGIN, API_REGISTER, todayKey, nowTime } from './utils.js';
-
-export const authToken = writable(localStorage.getItem(TOKEN_KEY) || null);
-let _token = localStorage.getItem(TOKEN_KEY) || null;
-authToken.subscribe(t => { _token = t; });
-
-function authHeaders() {
-  return _token
-    ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` }
-    : { 'Content-Type': 'application/json' };
-}
+import { DAILY, KV_KEY, API_LOAD, API_SAVE, todayKey, nowTime } from './utils.js';
 
 // ── Sync status ───────────────────────────────────────────────────────────────
 export const syncStatus = writable('idle');
@@ -104,7 +94,7 @@ function createStore() {
     const payload = JSON.stringify(s);
     localStorage.setItem(KV_KEY, payload);
     setSyncStatus('saving');
-    fetch(API_SAVE, { method: 'POST', headers: authHeaders(), body: payload })
+    fetch(API_SAVE, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload })
       .then(r => (r.ok ? setSyncStatus('ok') : setSyncStatus('error')))
       .catch(() => setSyncStatus('error'));
     return s;
@@ -117,7 +107,7 @@ function createStore() {
   async function init() {
     let s = defaultState();
     try {
-      const res = await fetch(API_LOAD, { headers: authHeaders() });
+      const res = await fetch(API_LOAD);
       if (!res.ok) throw new Error();
       const remote = await res.json();
       if (remote && Object.keys(remote).length > 0) {
@@ -219,33 +209,9 @@ function createStore() {
     set(ns);
   }
 
-  async function login(email, password) {
-    const res = await fetch(API_LOGIN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'login fallito');
-    localStorage.setItem(TOKEN_KEY, data.token);
-    authToken.set(data.token);
-  }
-
-  async function register(email, password) {
-    const res = await fetch(API_REGISTER, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'registrazione fallita');
-    localStorage.setItem(TOKEN_KEY, data.token);
-    authToken.set(data.token);
-  }
-
-  function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(KV_KEY);
-    authToken.set(null);
-    set(defaultState());
-  }
-
   return {
     subscribe,
     init,
-    login, register, logout,
     addExpense, delExpense,
     addExtra, delExtra,
     addRecurring, delRecurring,

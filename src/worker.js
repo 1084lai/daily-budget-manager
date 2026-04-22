@@ -1,45 +1,43 @@
-const enc = new TextEncoder();
-
-async function hashPassword(password, salt) {
-  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' },
-    key, 256
-  );
-  return btoa(String.fromCharCode(...new Uint8Array(bits)));
+function b64decode(str) {
+  return atob(str.replace(/-/g, '+').replace(/_/g, '/'));
 }
 
-function b64url(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-}
+async function isAuthenticated(req, env) {
+  // Local dev: nessun CF_TEAM_DOMAIN → accetta tutto
+  if (!env.CF_TEAM_DOMAIN) return true;
 
-function b64urlDecode(str) {
-  return Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-}
+  const token = req.headers.get('CF-Access-Jwt-Assertion');
+  if (!token) return false;
 
-async function signJWT(payload, secret) {
-  const header = b64url(enc.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const body = b64url(enc.encode(JSON.stringify(payload)));
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(`${header}.${body}`));
-  return `${header}.${body}.${b64url(sig)}`;
-}
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
 
-async function verifyJWT(token, secret) {
-  const parts = token.split('.');
-  if (parts.length !== 3) throw new Error('invalid token');
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
-  const valid = await crypto.subtle.verify('HMAC', key, b64urlDecode(parts[2]), enc.encode(`${parts[0]}.${parts[1]}`));
-  if (!valid) throw new Error('invalid signature');
-  const payload = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[1])));
-  if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error('expired');
-  return payload;
+    const header  = JSON.parse(b64decode(parts[0]));
+    const payload = JSON.parse(b64decode(parts[1]));
+
+    if (payload.exp < Math.floor(Date.now() / 1000)) return false;
+    if (env.CF_AUD && ![].concat(payload.aud).includes(env.CF_AUD)) return false;
+
+    const certsRes = await fetch(`https://${env.CF_TEAM_DOMAIN}.cloudflareaccess.com/cdn-cgi/access/certs`);
+    const { keys } = await certsRes.json();
+    const jwk = keys.find(k => k.kid === header.kid);
+    if (!jwk) return false;
+
+    const key = await crypto.subtle.importKey(
+      'jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']
+    );
+    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+    const sig  = Uint8Array.from(b64decode(parts[2]), c => c.charCodeAt(0));
+    return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, sig, data);
+  } catch { return false; }
 }
 
 function workerDefaultState() {
   return { expenses: {}, history: [], recurring: [], tags: [], extras: [], saldo: null, lastDate: null, carryover: 0 };
 }
+
+const STATE_KEY = 'main';
 
 export default {
   async fetch(req, env) {
@@ -47,7 +45,7 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, CF-Access-Client-Id, CF-Access-Client-Secret',
     };
 
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -59,57 +57,32 @@ export default {
       });
     }
 
-    async function getUser(req) {
-      const auth = req.headers.get('Authorization') || '';
-      const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      if (!token) return null;
-      try { return await verifyJWT(token, env.JWT_SECRET); }
-      catch { return null; }
-    }
-
-    if (url.pathname === '/api/register') return json({ error: 'registrazione disabilitata' }, 403);
-
-    // ── Login ─────────────────────────────────────────────────────────────────
-    if (url.pathname === '/api/login' && req.method === 'POST') {
-      const { email, password } = await req.json();
-      const user = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first();
-      if (!user) return json({ error: 'credenziali non valide' }, 401);
-      const hash = await hashPassword(password, user.salt);
-      if (hash !== user.hash) return json({ error: 'credenziali non valide' }, 401);
-      const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
-      const token = await signJWT({ user_id: user.id, exp }, env.JWT_SECRET);
-      return json({ token });
-    }
+    const authed = await isAuthenticated(req, env);
+    if (!authed) return json({ error: 'non autorizzato' }, 401);
 
     // ── Load ──────────────────────────────────────────────────────────────────
     if (url.pathname === '/api/load' && req.method === 'GET') {
-      const user = await getUser(req);
-      if (!user) return json({ error: 'non autorizzato' }, 401);
-      const row = await env.DB.prepare('SELECT data FROM state WHERE user_id = ?').bind(user.user_id).first();
+      const row = await env.DB.prepare('SELECT data FROM state WHERE id = ?').bind(STATE_KEY).first();
       return json(row ? JSON.parse(row.data) : {});
     }
 
     // ── Save ──────────────────────────────────────────────────────────────────
     if (url.pathname === '/api/save' && req.method === 'POST') {
-      const user = await getUser(req);
-      if (!user) return json({ error: 'non autorizzato' }, 401);
       const data = await req.text();
       await env.DB.prepare(
-        'INSERT INTO state (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
-      ).bind(user.user_id, data, Date.now()).run();
+        'INSERT INTO state (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
+      ).bind(STATE_KEY, data, Date.now()).run();
       return json({ ok: true });
     }
 
-    // ── Add expense (usato da iOS Shortcut) ───────────────────────────────────
+    // ── Add expense (iOS Shortcut) ────────────────────────────────────────────
     if (url.pathname === '/api/expense' && req.method === 'POST') {
-      const user = await getUser(req);
-      if (!user) return json({ error: 'non autorizzato' }, 401);
       let body;
       try { body = await req.json(); } catch { return json({ error: 'json non valido' }, 400); }
       const { name, amount } = body;
       if (!name || typeof amount !== 'number' || amount <= 0) return json({ error: 'name e amount (number > 0) richiesti' }, 400);
 
-      const row = await env.DB.prepare('SELECT data FROM state WHERE user_id = ?').bind(user.user_id).first();
+      const row = await env.DB.prepare('SELECT data FROM state WHERE id = ?').bind(STATE_KEY).first();
       const state = row ? Object.assign(workerDefaultState(), JSON.parse(row.data)) : workerDefaultState();
 
       const today = new Date().toISOString().split('T')[0];
@@ -119,8 +92,8 @@ export default {
       if (!state.lastDate) state.lastDate = today;
 
       await env.DB.prepare(
-        'INSERT INTO state (user_id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
-      ).bind(user.user_id, JSON.stringify(state), Date.now()).run();
+        'INSERT INTO state (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'
+      ).bind(STATE_KEY, JSON.stringify(state), Date.now()).run();
       return json({ ok: true, expense });
     }
 

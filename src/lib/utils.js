@@ -1,11 +1,7 @@
 export const DAILY = 20;
 export const KV_KEY = 'budget_v2';
-export const TOKEN_KEY = 'budget_token';
 export const API_LOAD = '/api/load';
 export const API_SAVE = '/api/save';
-export const API_EXPENSE = '/api/expense';
-export const API_LOGIN = '/api/login';
-export const API_REGISTER = '/api/register';
 export const TAG_PALETTE = ['#e74c3c','#e67e22','#d4a017','#27ae60','#2980b9','#8e44ad','#16a085','#7f8c8d'];
 
 export function todayKey() {
