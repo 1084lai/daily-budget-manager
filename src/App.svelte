@@ -1,6 +1,6 @@
 <script>
   import { onMount, setContext } from 'svelte';
-  import { store } from './lib/store.js';
+  import { store, authToken } from './lib/store.js';
   import Header from './components/Header.svelte';
   import Nav from './components/Nav.svelte';
   import TagModal from './components/TagModal.svelte';
@@ -9,6 +9,9 @@
   import TabExtra from './components/TabExtra.svelte';
   import TabUtils from './components/TabUtils.svelte';
   import TabGrafici from './components/TabGrafici.svelte';
+  import Login from './components/Login.svelte';
+
+  $: token = $authToken;
 
   let activeTab = 'oggi';
   let loading = true;
@@ -54,13 +57,23 @@
     modalOpen = false;
   }
 
-  onMount(async () => {
+  async function onAuthed() {
     await store.init();
     loading = false;
+  }
+
+  onMount(async () => {
+    if (token) {
+      await store.init();
+      loading = false;
+    }
   });
 </script>
 
 <div class="app">
+  {#if !token}
+    <Login on:authed={onAuthed} />
+  {:else}
   {#if loading}
     <div class="loading-overlay">
       <div class="loading-spinner"></div>
@@ -92,5 +105,6 @@
       on:confirm={onModalConfirm}
       on:cancel={() => modalOpen = false}
     />
+  {/if}
   {/if}
 </div>
