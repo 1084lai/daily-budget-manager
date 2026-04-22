@@ -1,6 +1,7 @@
 <script>
   import ChartBarre from './ChartBarre.svelte';
   import ChartLinea from './ChartLinea.svelte';
+  import ChartTorta from './ChartTorta.svelte';
 </script>
 
 <div class="section" style="padding-top:24px">
@@ -21,6 +22,11 @@
     <span style="margin-left:4px;font-size:11px;color:var(--text3)">sopra lo zero = in risparmio</span>
   </div>
   <ChartLinea />
+</div>
+
+<div class="section" style="margin-top:24px">
+  <div class="section-label">spesa per tag</div>
+  <ChartTorta />
 </div>
 
 <div style="height:20px"></div>
