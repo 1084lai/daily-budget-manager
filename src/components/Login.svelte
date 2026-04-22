@@ -28,11 +28,6 @@
 <div class="login-wrap">
   <div class="login-card">
     <div class="login-title">budget</div>
-    <div class="login-tabs">
-      <button class="login-tab" class:active={mode === 'login'} on:click={() => { mode = 'login'; error = ''; }}>accedi</button>
-      <button class="login-tab" disabled title="registrazione chiusa">registrati</button>
-    </div>
-
     <input class="input-field" type="email" bind:value={email} placeholder="email" autocomplete="email"
       on:keydown={e => e.key === 'Enter' && document.getElementById('login-pwd').focus()} />
     <input class="input-field" id="login-pwd" type="password" bind:value={password} placeholder="password"
