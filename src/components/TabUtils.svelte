@@ -1,7 +1,6 @@
 <script>
   import { store } from '../lib/store.js';
   import { TAG_PALETTE } from '../lib/utils.js';
-  import { API_LOAD, KV_KEY } from '../lib/utils.js';
 
   $: s = $store;
 
@@ -16,11 +15,8 @@
   }
 
   // Export / Import
-  async function exportData() {
-    let payload;
-    try { const res = await fetch(API_LOAD); payload = await res.text(); }
-    catch { payload = localStorage.getItem(KV_KEY) || '{}'; }
-    const blob = new Blob([payload], { type: 'application/json' });
+  function exportData() {
+    const blob = new Blob([JSON.stringify(s)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = Object.assign(document.createElement('a'), { href: url, download: `budget_${new Date().toISOString().slice(0,10)}.json` });
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
