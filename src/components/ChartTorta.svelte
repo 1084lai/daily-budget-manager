@@ -97,10 +97,11 @@
   onDestroy(() => { if (chart) { chart.destroy(); chart = null; } });
 </script>
 
+<div class="chart-container" style="height:200px; display:{hasData ? 'block' : 'none'}">
+  <canvas bind:this={canvas}></canvas>
+</div>
+
 {#if hasData}
-  <div class="chart-container" style="height:200px">
-    <canvas bind:this={canvas}></canvas>
-  </div>
   <div class="torta-legend">
     {#each slices.sort((a, b) => b.total - a.total) as sl}
       <div class="torta-leg-row">
@@ -113,7 +114,6 @@
     {/each}
   </div>
 {:else}
-  <canvas bind:this={canvas} style="display:none"></canvas>
   <div class="empty">nessuna spesa con tag assegnato</div>
 {/if}
 
