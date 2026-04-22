@@ -67,20 +67,7 @@ export default {
       catch { return null; }
     }
 
-    // ── Register ──────────────────────────────────────────────────────────────
-    if (url.pathname === '/api/register' && req.method === 'POST') {
-      const { email, password } = await req.json();
-      if (!email || !password) return json({ error: 'email e password richiesti' }, 400);
-      const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-      if (existing) return json({ error: 'email già registrata' }, 409);
-      const salt = crypto.randomUUID();
-      const hash = await hashPassword(password, salt);
-      const id = crypto.randomUUID();
-      await env.DB.prepare('INSERT INTO users (id, email, hash, salt) VALUES (?, ?, ?, ?)').bind(id, email, hash, salt).run();
-      const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
-      const token = await signJWT({ user_id: id, exp }, env.JWT_SECRET);
-      return json({ token });
-    }
+    if (url.pathname === '/api/register') return json({ error: 'registrazione disabilitata' }, 403);
 
     // ── Login ─────────────────────────────────────────────────────────────────
     if (url.pathname === '/api/login' && req.method === 'POST') {

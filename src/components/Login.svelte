@@ -30,7 +30,7 @@
     <div class="login-title">budget</div>
     <div class="login-tabs">
       <button class="login-tab" class:active={mode === 'login'} on:click={() => { mode = 'login'; error = ''; }}>accedi</button>
-      <button class="login-tab" class:active={mode === 'register'} on:click={() => { mode = 'register'; error = ''; }}>registrati</button>
+      <button class="login-tab" disabled title="registrazione chiusa">registrati</button>
     </div>
 
     <input class="input-field" type="email" bind:value={email} placeholder="email" autocomplete="email"
