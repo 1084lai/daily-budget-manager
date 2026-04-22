@@ -8,6 +8,7 @@
   import TabStorico from './components/TabStorico.svelte';
   import TabExtra from './components/TabExtra.svelte';
   import TabUtils from './components/TabUtils.svelte';
+  import TabGrafici from './components/TabGrafici.svelte';
 
   let activeTab = 'oggi';
   let loading = true;
@@ -77,6 +78,8 @@
     <TabExtra />
   {:else if activeTab === 'utils'}
     <TabUtils />
+  {:else if activeTab === 'grafici'}
+    <TabGrafici />
   {/if}
 
   <Nav {activeTab} onSwitch={tab => activeTab = tab} />

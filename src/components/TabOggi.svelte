@@ -2,7 +2,6 @@
   import { getContext } from 'svelte';
   import { store } from '../lib/store.js';
   import { DAILY, todayKey, fmt, fmtSigned } from '../lib/utils.js';
-  import ChartBarre from './ChartBarre.svelte';
   import ExpenseForm from './ExpenseForm.svelte';
 
   const openTagModal = getContext('openTagModal');
@@ -78,19 +77,6 @@
     {/if}
   </div>
 </div>
-
-<!-- CHART 7 GIORNI -->
-<div class="section">
-  <div class="section-label">ultimi 7 giorni</div>
-  <div class="chart-legend">
-    <span><span class="leg-sq leg-ok"></span>entro limite</span>
-    <span><span class="leg-sq leg-over"></span>sforato</span>
-    <span><span class="leg-sq leg-warn"></span>limite ok, carryover negativo</span>
-    <span><span class="leg-line leg-neutral"></span>limite €20</span>
-  </div>
-  <ChartBarre />
-</div>
-
 
 
 <div style="height:20px"></div>

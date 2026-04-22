@@ -22,6 +22,12 @@
     </svg>
     extra
   </button>
+  <button class="nav-item" class:active={activeTab === 'grafici'} on:click={() => onSwitch('grafici')}>
+    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <polyline points="22 20 14 12 8 18 2 12"/><polyline points="22 12 14 4 8 10 2 4"/>
+    </svg>
+    grafici
+  </button>
   <button class="nav-item" class:active={activeTab === 'utils'} on:click={() => onSwitch('utils')}>
     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3-3a1 1 0 000-1.4l-1.6-1.6a1 1 0 00-1.4 0l-3 3z"/>

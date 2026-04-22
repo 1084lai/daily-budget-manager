@@ -2,7 +2,6 @@
   import { getContext } from 'svelte';
   import { store } from '../lib/store.js';
   import { fmt, fmtSigned, dateLabel } from '../lib/utils.js';
-  import ChartLinea from './ChartLinea.svelte';
 
   const openTagModal = getContext('openTagModal');
 
@@ -18,18 +17,8 @@
   }
 </script>
 
-<!-- CHART CARRYOVER -->
-<div class="section" style="padding-top:24px">
-  <div class="section-label">andamento carryover</div>
-  <div class="chart-legend">
-    <span><span class="leg-line leg-blue"></span>carryover cumulato</span>
-    <span style="margin-left:4px;font-size:11px;color:var(--text3)">sopra lo zero = in risparmio</span>
-  </div>
-  <ChartLinea />
-</div>
-
 <!-- STATS -->
-<div class="section" style="margin-top:20px">
+<div class="section" style="margin-top:24px;padding-top:24px">
   <div class="section-label">riepilogo</div>
   <div class="cards-grid cards-3">
     <div class="metric-card"><div class="metric-label">media/giorno</div><div class="metric-value">{fmt(avg)}</div></div>
